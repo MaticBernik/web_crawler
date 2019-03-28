@@ -26,6 +26,7 @@ CREATE TABLE crawldb.page (
 	html_content         text  ,
 	http_status_code     integer  ,
 	accessed_time        timestamp  ,
+	minhash			varchar(500), 
 	CONSTRAINT pk_page_id PRIMARY KEY ( id ),
 	CONSTRAINT unq_url_idx UNIQUE ( url ) 
  );
@@ -64,9 +65,17 @@ CREATE TABLE crawldb.link (
 	CONSTRAINT _0 PRIMARY KEY ( from_page, to_page )
  );
 
+CREATE TABLE crawldb.frontier (
+	placement			serial NOT NULL,
+	id				integer,
+	processing_start_time	timestamp
+);
+
 CREATE INDEX "idx_link_from_page" ON crawldb.link ( from_page );
 
 CREATE INDEX "idx_link_to_page" ON crawldb.link ( to_page );
+
+ALTER TABLE crawldb.frontier ADD CONSTRAINT fk_frontier_page_id FOREIGN KEY ( id ) REFERENCES crawldb.page( id ) ON DELETE RESTRICT;
 
 ALTER TABLE crawldb.image ADD CONSTRAINT fk_image_page_data FOREIGN KEY ( page_id ) REFERENCES crawldb.page( id ) ON DELETE RESTRICT;
 
@@ -81,6 +90,8 @@ ALTER TABLE crawldb.page ADD CONSTRAINT fk_page_page_type FOREIGN KEY ( page_typ
 ALTER TABLE crawldb.page_data ADD CONSTRAINT fk_page_data_page FOREIGN KEY ( page_id ) REFERENCES crawldb.page( id ) ON DELETE RESTRICT;
 
 ALTER TABLE crawldb.page_data ADD CONSTRAINT fk_page_data_data_type FOREIGN KEY ( data_type_code ) REFERENCES crawldb.data_type( code ) ON DELETE RESTRICT;
+
+ALTER TABLE crawldb.frontier ALTER COLUMN processing_start_time SET DEFAULT NULL;
 
 INSERT INTO crawldb.data_type VALUES 
 	('PDF'),
