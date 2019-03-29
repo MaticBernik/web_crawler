@@ -55,7 +55,7 @@ while True:
     #EXIT WHEN ALL WORKERS ARE DONE
     if all([not worker.is_running() for worker in workers]):
         break
-    time.sleep(5)
+    time.sleep(FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS)
 cursor.close()
 conn.close()
 print('***...DONE!')
