@@ -14,6 +14,18 @@ FRONTIER_SEED_URLS=['evem.gov.si','e-uprava.gov.si','podatki.gov.si','e-prostor.
 FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS=60
 NR_WORKERS=8
 
+def unblock_frontier_waiting(conn):
+    '''
+    FOR TESTING
+    Make all URLs in frontier to 'waiting' status
+    '''
+    cursor=conn.cursor()
+    update_statement = "UPDATE crawldb.frontier SET processing_start_time=NULL, status='waiting';"
+    cursor.execute(update_statement)
+    conn.commit()
+    cursor.close()
+
+
 #CONNECT TO DATABASE
 conn = psycopg2.connect(host=DB_HOST,database=DB_NAME, user=DB_USER, password=DB_PASSWORD)
 print('***DB connected!')
@@ -37,6 +49,7 @@ if pages_nr==0 and frontier_pages_nr==0:
     cursor.execute(frontier_insert)
     conn.commit()
     print('...done!')
+unblock_frontier_waiting(conn) #REMOVE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #INITIALIZE AND RUN WORKERS
 print('***Running workers in seperate threads...')
 workers=[Crawler_worker(db_conn=conn,id='WORKER_'+str(i)) for i in range(NR_WORKERS)]
@@ -50,7 +63,7 @@ print('***Entering main loop...')
 while True:
     #UNBLOCK TIMED-OUT URLs IN FRONTIER
     #later replace with postgres cron job
-    update_statement="UPDATE crawldb.frontier SET processing_start_time=NULL, status='waiting' WHERE processing_start_time < NOW() - INTERVAL '"+str(FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS)+" seconds';"
+    update_statement="UPDATE crawldb.frontier SET processing_start_time=NULL, status='waiting' WHERE status='processing' AND processing_start_time < NOW() - INTERVAL '"+str(FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS)+" seconds';"
     cursor.execute(update_statement)
     conn.commit()
     #EXIT WHEN ALL WORKERS ARE DONE
