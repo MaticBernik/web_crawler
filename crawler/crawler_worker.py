@@ -148,17 +148,24 @@ class Crawler_worker:
         print(self.id+' RUNNING..')
         self.running = True
         while True:
-            current_url = self.get_next_URL()
+
             images = []
             documents = []
             urls = []
             # canonicalize URL
-            if current_url is None:
+            for retry in range(3):
+                current_url = self.get_next_URL()
+                if current_url is not None:
+                    break
+                else:
+                    print(self.id+' without URL job...retrying in 1s...')
+                    time.sleep(1)
+            else:
                 break
             if self.url_already_processed(current_url):
                 self.processing_done_URL(current_url)
                 continue
-            time.sleep(3)  # REMOVE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            time.sleep(3)  # Simulate processing time...REMOVE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             self.process_robots_file(current_url)
             content = self.get_page()
             content_type = Crawler_worker.get_content_type(content)
@@ -176,6 +183,7 @@ class Crawler_worker:
                 documents += docs
                 urls += href
             self.write_to_DB(current_url=current_url, images=images, documents=documents, urls=urls)
+        print(self.id+' exiting!')
         self.cursor.close()
         self.running = False
 
