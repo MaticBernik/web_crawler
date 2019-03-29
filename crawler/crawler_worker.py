@@ -1,5 +1,7 @@
 #from urllib.parse import urlparse
 from urltools import normalize
+import time
+
 
 
 class Crawler_worker:
@@ -13,8 +15,13 @@ class Crawler_worker:
         #start timer/add timestamp
         cursor=self.cursor
         conn=self.db_conn
-        select_statement="""SELECT crawldb.page.id FROM crawldb.frontier INNER JOIN crawldb.page on crawldb.page.id=crawldb.frontier.id  WHERE processing_start_time IS NULL ORDER BY crawldb.frontier.placement FOR UPDATE SKIP LOCKED LIMIT 1"""
-        update_statement="""UPDATE crawldb.frontier SET processing_start_time='now' 
+        #ENSURE BREADTH-FIRST STRATEGY
+        select_statement="""SELECT MIN(depth) from crawldb.frontier WHERE status='waiting'"""
+        select_statement="""SELECT crawldb.page.id 
+                            FROM crawldb.frontier INNER JOIN crawldb.page ON crawldb.page.id=crawldb.frontier.id  
+                            WHERE status = 'waiting' AND processing_start_time IS NULL AND depth = ("""+select_statement+""")
+                            ORDER BY crawldb.frontier.placement FOR UPDATE SKIP LOCKED LIMIT 1"""
+        update_statement="""UPDATE crawldb.frontier SET processing_start_time='now', status='processing' 
                             WHERE id= ("""+select_statement+""")
                             RETURNING crawldb.frontier.id;"""
         cursor.execute(update_statement)
@@ -36,8 +43,18 @@ class Crawler_worker:
         cursor = self.cursor
         conn = self.db_conn
         normalized_url = normalize(url)
-        select_statement = """DELETE FROM crawldb.frontier WHERE id = (SELECT id FROM crawldb.page WHERE url='""" + normalized_url + """');"""
-        cursor.execute(select_statement)
+        delete_statement = """DELETE FROM crawldb.frontier 
+                              WHERE id = (SELECT id FROM crawldb.page WHERE url='""" + normalized_url + """');"""
+        cursor.execute(delete_statement)
+        conn.commit()
+        return True
+
+    def processing_done_URL(self,url):
+        cursor = self.cursor
+        conn = self.db_conn
+        normalized_url = normalize(url)
+        update_statement = "UPDATE crawldb.frontier SET status='done' WHERE id = (SELECT id FROM crawldb.page WHERE url = '" + normalized_url + "' LIMIT 1);"
+        cursor.execute(update_statement)
         conn.commit()
         return True
 
@@ -60,10 +77,25 @@ class Crawler_worker:
             normalized_url = normalize(url)
         else:
             normalized_url = url
-        select_statement = """SELECT exists (SELECT 1 FROM crawldb.frontier WHERE id = (SELECT id from crawldb.page WHERE url = '""" + normalized_url + """') LIMIT 1);"""
+        select_statement = """SELECT exists (
+                                SELECT 1 FROM crawldb.frontier 
+                                WHERE id = (
+                                    SELECT id from crawldb.page WHERE url = '""" + normalized_url + """') 
+                                LIMIT 1);"""
         cursor.execute(select_statement)
         already_exists = cursor.fetchone()[0]
         return already_exists
+
+    def get_current_depth(self,url,normalize_url=True):
+        cursor = self.cursor
+        if normalize_url:
+            normalized_url = normalize(url)
+        else:
+            normalized_url = url
+        select_statement = """SELECT depth FROM crawldb.frontier WHERE url='"""+normalized_url+"""';"""
+        cursor.execute(select_statement)
+        current_depth = cursor.fetchone()[0]
+        return current_depth
 
     def process_robots_file(self,url):
         #extract domain base url
@@ -89,6 +121,7 @@ class Crawler_worker:
         #WITHIN SINGLE TRANSACTION!!!
         #write new data to database
         #and remove current_url from frontier
+        #for URLs: DEPTH = DEPTH +1
         pass
         urls = list({normalize(u) for u in urls})
         urls = [u for u in urls if not self.url_in_frontier(u) and not self.url_already_processed(u)]
@@ -111,6 +144,7 @@ class Crawler_worker:
         self.running = True
         while True:
             current_url = self.get_next_URL()
+            time.sleep(2) #REMOVE!!!
             images = []
             documents = []
             urls = []
@@ -118,7 +152,7 @@ class Crawler_worker:
             if current_url is None:
                 break
             if self.url_already_processed(current_url):
-                self.remove_URL(current_url)
+                self.processing_done_URL(current_url)
                 continue
             self.process_robots_file(current_url)
             content = self.get_page()
@@ -130,7 +164,7 @@ class Crawler_worker:
             elif content_type == 'html':
                 page_hash = get_hash(content)
                 if self.duplicate_page(page_hash):
-                    self.remove_URL()
+                    self.remove_URL(current_url)
                     continue
                 img, href, docs = self.parse_page(content)
                 images += img

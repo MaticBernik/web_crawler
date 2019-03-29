@@ -65,9 +65,13 @@ CREATE TABLE crawldb.link (
 	CONSTRAINT _0 PRIMARY KEY ( from_page, to_page )
  );
 
+CREATE TYPE frontier_status as ENUM('waiting','processing','done');
+
 CREATE TABLE crawldb.frontier (
 	placement			serial NOT NULL,
+	depth           integer NOT NULL,
 	id				integer,
+	status          frontier_status NOT NULL,
 	processing_start_time	timestamp
 );
 

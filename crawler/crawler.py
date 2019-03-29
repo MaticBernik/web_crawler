@@ -3,12 +3,13 @@ from crawler_worker import Crawler_worker
 import psycopg2
 import threading
 import time
+import json
 
-
-DB_HOST='testni.streznik.org'
-DB_NAME='crawldb'
-DB_USER='username'
-DB_PASSWORD='password'
+db_connection_info = json.load(open('connect_DB.json'))
+DB_HOST=db_connection_info['host']
+DB_NAME=db_connection_info['name']
+DB_USER=db_connection_info['username']
+DB_PASSWORD=db_connection_info['password']
 FRONTIER_SEED_URLS=['evem.gov.si','e-uprava.gov.si','podatki.gov.si','e-prostor.gov.si','mizs.gov.si','mddsz.gov.si','mz.gov.si','uvps.gov.si','mf.gov.si']
 FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS=60
 NR_WORKERS=8
@@ -32,7 +33,7 @@ if pages_nr==0 and frontier_pages_nr==0:
     page_insert='INSERT INTO crawldb.page(url) VALUES '+','.join(["('"+url+"')" for url in FRONTIER_SEED_URLS])+' RETURNING id;'
     cursor.execute(page_insert)
     row_id=cursor.fetchall()
-    frontier_insert='INSERT INTO crawldb.frontier(id) VALUES '+','.join(["("+str(id[0])+")" for id in row_id])+';'
+    frontier_insert='INSERT INTO crawldb.frontier(id,depth,status) VALUES '+','.join(["("+str(id[0])+",0,'waiting')" for id in row_id])+';'
     cursor.execute(frontier_insert)
     conn.commit()
     print('...done!')
@@ -49,13 +50,13 @@ print('***Entering main loop...')
 while True:
     #UNBLOCK TIMED-OUT URLs IN FRONTIER
     #later replace with postgres cron job
-    update_statement="UPDATE crawldb.frontier SET processing_start_time=NULL WHERE processing_start_time < NOW() - INTERVAL '"+str(FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS)+" seconds';"
+    update_statement="UPDATE crawldb.frontier SET processing_start_time=NULL, status='waiting' WHERE processing_start_time < NOW() - INTERVAL '"+str(FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS)+" seconds';"
     cursor.execute(update_statement)
     conn.commit()
     #EXIT WHEN ALL WORKERS ARE DONE
     if all([not worker.is_running() for worker in workers]):
         break
-    time.sleep(FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS)
+    #time.sleep(FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS)
 cursor.close()
 conn.close()
 print('***...DONE!')
