@@ -39,7 +39,7 @@ if pages_nr==0 and frontier_pages_nr==0:
     print('...done!')
 #INITIALIZE AND RUN WORKERS
 print('***Running workers in seperate threads...')
-workers=[Crawler_worker(db_conn=conn) for i in range(NR_WORKERS)]
+workers=[Crawler_worker(db_conn=conn,id='WORKER_'+str(i)) for i in range(NR_WORKERS)]
 for worker in workers:
     t = threading.Thread(target=worker.run)
     t.start()

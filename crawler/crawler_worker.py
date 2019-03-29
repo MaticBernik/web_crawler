@@ -32,7 +32,7 @@ class Crawler_worker:
         select_statement="""SELECT crawldb.page.id,crawldb.page.url FROM crawldb.page WHERE id="""+str(next_page_id)+';'
         cursor.execute(select_statement)
         next_page=cursor.fetchone()
-        print('NEXT PAGE: ',next_page)
+        print(self.id+': NEXT PAGE: ',next_page)
         return  next_page[1]
 
 
@@ -65,7 +65,10 @@ class Crawler_worker:
             normalized_url = normalize(url)
         else:
             normalized_url=url
-        select_statement = """SELECT exists (SELECT 1 FROM crawldb.page WHERE url = '"""+normalized_url+"""' LIMIT 1);"""
+        #select_statement = """SELECT exists (SELECT 1 FROM crawldb.page WHERE url = '"""+normalized_url+"""' LIMIT 1);"""
+        select_statement = """SELECT exists (
+                                SELECT 1 FROM crawldb.page INNER JOIN crawldb.frontier ON crawldb.page.id=crawldb.frontier.id  
+                                WHERE crawldb.frontier.status='done' AND crawldb.page.url = '""" + normalized_url + """' LIMIT 1);"""
         cursor.execute(select_statement)
         already_exists=cursor.fetchone()[0]
         return already_exists
@@ -122,7 +125,9 @@ class Crawler_worker:
         #write new data to database
         #and remove current_url from frontier
         #for URLs: DEPTH = DEPTH +1
-        pass
+        return #REMOVE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        conn=self.db_conn
+        cursor=self.cursor
         urls = list({normalize(u) for u in urls})
         urls = [u for u in urls if not self.url_in_frontier(u) and not self.url_already_processed(u)]
         insert_images_statement=""""""
@@ -140,11 +145,10 @@ class Crawler_worker:
         pass
 
     def run(self):
-        print('WORKER RUNNING..')
+        print(self.id+' RUNNING..')
         self.running = True
         while True:
             current_url = self.get_next_URL()
-            time.sleep(2) #REMOVE!!!
             images = []
             documents = []
             urls = []
@@ -154,9 +158,10 @@ class Crawler_worker:
             if self.url_already_processed(current_url):
                 self.processing_done_URL(current_url)
                 continue
+            time.sleep(3)  # REMOVE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             self.process_robots_file(current_url)
             content = self.get_page()
-            content_type = get_content_type()
+            content_type = Crawler_worker.get_content_type(content)
             if content_type == 'image':
                 images.append(content)
             elif content_type == 'document':
@@ -174,9 +179,10 @@ class Crawler_worker:
         self.cursor.close()
         self.running = False
 
-    def __init__(self, db_conn):
+    def __init__(self, db_conn, id='WORKER'):
         self.db_conn=db_conn
         self.cursor=db_conn.cursor()
+        self.id=id
 
 
 
