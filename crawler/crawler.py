@@ -52,7 +52,7 @@ if pages_nr==0 and frontier_pages_nr==0:
 unblock_frontier_waiting(conn) #REMOVE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #INITIALIZE AND RUN WORKERS
 print('***Running workers in seperate threads...')
-workers=[Crawler_worker(db_conn=conn,id='WORKER_'+str(i)) for i in range(NR_WORKERS)]
+workers=[Crawler_worker(db_conn=conn,id='WORKER_'+str(i),frontier_seed_urls=FRONTIER_SEED_URLS) for i in range(NR_WORKERS)]
 for worker in workers:
     t = threading.Thread(target=worker.run)
     t.start()

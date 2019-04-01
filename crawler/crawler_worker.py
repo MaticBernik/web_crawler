@@ -60,11 +60,11 @@ class Crawler_worker:
         conn.commit()
         return True
 
-    def url_already_processed(self,url,normalize_url=True):
+    def url_already_processed(self,url,normalize_url=False):
         #check if URL already in column url of table page
         cursor=self.cursor
         if normalize_url:
-            normalized_url = normalize(url)
+            normalized_url = Crawler_worker.normalize_url(url)
         else:
             normalized_url=url
         #select_statement = """SELECT exists (SELECT 1 FROM crawldb.page WHERE url = '"""+normalized_url+"""' LIMIT 1);"""
@@ -75,11 +75,11 @@ class Crawler_worker:
         already_exists=cursor.fetchone()[0]
         return already_exists
 
-    def url_in_frontier(self,url,normalize_url=True):
+    def url_in_frontier(self,url,normalize_url=False):
         # check if URL already in frontier
         cursor = self.cursor
         if normalize_url:
-            normalized_url = normalize(url)
+            normalized_url = Crawler_worker.normalize_url(url)
         else:
             normalized_url = url
         select_statement = """SELECT exists (
@@ -91,10 +91,15 @@ class Crawler_worker:
         already_exists = cursor.fetchone()[0]
         return already_exists
 
-    def get_current_depth(self,url,normalize_url=True):
+    @staticmethod
+    def normalize_url(url):
+        return normalize(url)
+
+
+    def get_current_depth(self,url,normalize_url=False):
         cursor = self.cursor
         if normalize_url:
-            normalized_url = normalize(url)
+            normalized_url = Crawler_worker.normalize_url(url)
         else:
             normalized_url = url
         select_statement = """SELECT depth FROM crawldb.frontier WHERE url='"""+normalized_url+"""';"""
@@ -113,6 +118,7 @@ class Crawler_worker:
         domain_url = '{uri.scheme}://{uri.netloc}/'.format(uri=parsed_uri)
         select_statement = """SELECT robots_content,sitemap_content FORM crawldb.site WHERE domain = '"""+domain_url+"""'"""
         cursor.execute(select_statement)
+        #RETRIEVE DATA FROM WEBPAGE URL INSTEAD OF DB BUT CACHE LOCALLY BETWEEN THREADS
         if cursor.rowcount > 0:
             robots_content,sitemap_content = cursor.fetchone()
         else:
@@ -125,7 +131,7 @@ class Crawler_worker:
             #add sitemap urls to (list to be later added to) frontier??
         return rp
 
-    def get_page(self):
+    def get_page(self,url,useragent):
         #download and render page ??Selenium??
         pass
 
@@ -164,11 +170,20 @@ class Crawler_worker:
 
     def parse_page(self,content):
         #parse html page and return three lists:
-        #list of images, list of urls and list of documents
+        #list of images, list of hrefs and list of documents
+        #each list contains URLs (or tuples??)
         images=[]
         documents=[]
         hrefs=[]
         return images,documents,hrefs
+
+    def early_stop_condition(self):
+        select_statement = """SELECT count(*) 
+                              FROM crawldb.page
+                              WHERE page_type_code='HTML';"""
+        self.cursor.execute(select_statement)
+        html_page_count=self.cursor.fetchone()
+        return html_page_count[0] > 100000
 
     def run(self):
         print(self.id+' RUNNING..')
@@ -177,7 +192,10 @@ class Crawler_worker:
             images = []
             documents = []
             hrefs = []
-            # canonicalize URL
+            ##### CHECK IF 100.000 WEB PAGES ALREADY PROCESSED #####
+            if self.early_stop_condition():
+                print(self.id+'EARLY-STOP CONDITION REACHED ...exiting!')
+                break
             ##### TRY TO GET NEXT JOB/URL (exit after 3 retries) #####
             for retry in range(3):
                 current_url = self.get_next_URL()
@@ -194,32 +212,47 @@ class Crawler_worker:
                 continue
 
             time.sleep(3)  # Simulate processing time...REMOVE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            ##### PROCESS ROBOTS FILE #####
+
+            ##### PROCESS ROBOTS FILE (returns robotparser object) #####
             rp=self.process_robots_file(current_url)
 
             ##### RENDER/DOWNLOAD WEBPAGE #####
-            content = self.get_page()
+            useragent="*"
+            content = self.get_page(url=current_url,useragent=useragent)
 
             ##### CHECK IF PAGE CONTENT IMPLIES ALREADY PROCESSED PAGE (if it was, mark job as done) #####
             page_hash = self.get_hash(content)
             if self.duplicate_page(page_hash):
                 self.remove_URL(current_url)
                 continue
+
             ##### PARSE WEBPAGE AND EXTRACT IMAGES,DOCUMENTS AND HREFS #####
             images_tmp, documents_tmp, hrefs_tmp = self.parse_page(content)
             images += images_tmp
             documents += documents_tmp
             hrefs += hrefs_tmp
+
+            ##### FILTER URLS BASED ON ROBOTS FILE #####
+            images = [image_url for image_url in images if rp.can_fetch(useragent,image_url)]
+            documents = [document_url for document_url in documents if rp.can_fetch(useragent, document_url)]
+            hrefs = [href_url for href_url in hrefs if rp.can_fetch(useragent, href_url)]
+
+            ##### NORMALIZE URLS #####
+            images = [Crawler_worker.normalize_url(image_url) for image_url in images]
+            documents = [Crawler_worker.normalize_url(document_url) for document_url in documents]
+            hrefs = [Crawler_worker(href_url) for href_url in hrefs]
+
             ##### WRITE NEW DATA TO DB IN SINGLE TRANSACTION #####
             self.write_to_DB(current_url=current_url, images=images, documents=documents, urls=hrefs)
         print(self.id+' exiting!')
         self.cursor.close()
         self.running = False
 
-    def __init__(self, db_conn, id='WORKER'):
+    def __init__(self, db_conn, frontier_seed_urls, id='WORKER'):
         self.db_conn=db_conn
         self.cursor=db_conn.cursor()
         self.id=id
+        self.frontier_seed_urls=frontier_seed_urls
 
 
 
