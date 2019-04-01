@@ -10,7 +10,7 @@ DB_HOST=db_connection_info['host']
 DB_NAME=db_connection_info['name']
 DB_USER=db_connection_info['username']
 DB_PASSWORD=db_connection_info['password']
-FRONTIER_SEED_URLS=['evem.gov.si','e-uprava.gov.si','podatki.gov.si','e-prostor.gov.si','mizs.gov.si','mddsz.gov.si','mz.gov.si','uvps.gov.si','mf.gov.si']
+FRONTIER_SEED_URLS=['http://evem.gov.si','http://e-uprava.gov.si','http://podatki.gov.si','http://e-prostor.gov.si','http://mizs.gov.si','http://mddsz.gov.si','http://mz.gov.si','http://uvps.gov.si','http://mf.gov.si']
 FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS=60
 NR_WORKERS=8
 

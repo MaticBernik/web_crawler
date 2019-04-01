@@ -1,12 +1,16 @@
-#from urllib.parse import urlparse
 from urltools import normalize
+import urllib
 from urllib.parse import urlparse
-import urllib.robotparser
+from threading import Lock
+import robotparser
 import time
 
 
 
+
 class Crawler_worker:
+    cache_robots={}
+    cache_robots_lock=Lock()
 
     def is_running(self):
         return self.running
@@ -108,28 +112,92 @@ class Crawler_worker:
         return current_depth
 
     def process_robots_file(self,url):
-        return
         #extract domain base url
         #check for existance of robots.txt
         #process robots.txt (User-agent, Allow, Disallow, Crawl-delay and Sitemap)??
         #If a sitemap is defined shuld all the URLs defined within it be added to the frontier exclusively or additionaly
+        #If site not already in DB, write it there
+        #else just try to find site's RP object in local cache
         cursor=self.cursor
+        conn=self.db_conn
         parsed_uri = urlparse(url)
         domain_url = '{uri.scheme}://{uri.netloc}/'.format(uri=parsed_uri)
-        select_statement = """SELECT robots_content,sitemap_content FORM crawldb.site WHERE domain = '"""+domain_url+"""'"""
-        cursor.execute(select_statement)
-        #RETRIEVE DATA FROM WEBPAGE URL INSTEAD OF DB BUT CACHE LOCALLY BETWEEN THREADS
-        if cursor.rowcount > 0:
-            robots_content,sitemap_content = cursor.fetchone()
+        ##### restore from cache if stored else create #####
+        Crawler_worker.cache_robots_lock.acquire()
+        if domain_url in Crawler_worker.cache_robots:
+            rp=Crawler_worker.cache_robots[domain_url]
         else:
-            robots_url=domain_url+'robots.txt'
-            rp = urlib.robotparser.RobotFileParser()
+            robots_url = domain_url + 'robots.txt'
+            rp = robotparser.RobotFileParser()
             rp.set_url(robots_url)
             rp.read()
-            #WRITE DOMAIN DATA TO DATABASE
+            Crawler_worker.cache_robots[domain_url]=rp
+        Crawler_worker.cache_robots_lock.release()
+        robots_content=rp.raw
+        sitemap_list=rp.sitemaps
+        sitemap_content=''
+        for sitemap in sitemap_list:
+            tmp=Crawler_worker.read_page(sitemap)
+            if tmp is not None:
+                sitemap_content+=tmp
+        ##### if sitemap data not already in DV --> insert#####
+        i_r=rp.robots_exists #robot.txt file exists
+        i_s=sitemap_content != '' #sitemap exists
+        '''
+        insert_statement = """INSERT INTO crawldb.site (domain"""\
+                              + (',robots_content' if i_r else '')\
+                              + (', sitemap_content' if i_s else '')+""")
+                              VALUES (%s"""\
+                              + (', %s' if i_r else '')\
+                              + (', %s' if i_s else '')+""")
+                              ON CONFLICT DO NOTHING;"""
+        insert_values=[domain_url]
+        if i_r:
+            insert_values.append(robots_content)
+        if i_s:
+            insert_values.append(sitemap_content)
+        insert_values = tuple(insert_values)
+        print("INSERT VALUES", len(insert_values))
+        '''
+        insert_statement = """INSERT INTO crawldb.site (domain"""\
+                              + (',robots_content' if i_r else '')\
+                              + (', sitemap_content' if i_s else '')+""")
+                              SELECT %s"""\
+                              + (', %s' if i_r else '')\
+                              + (', %s' if i_s else '')\
+                              + """WHERE NOT EXISTS (
+                                SELECT 1 FROM crawldb.site
+                                WHERE domain = %s
+                                FOR UPDATE SKIP LOCKED LIMIT 1);"""
+        insert_values = [domain_url]
+        if i_r:
+            insert_values.append(robots_content)
+        if i_s:
+            insert_values.append(sitemap_content)
+        insert_values.append(domain_url)
+        insert_values = tuple(insert_values)
 
-            #add sitemap urls to (list to be later added to) frontier??
+        cursor.execute(insert_statement,insert_values)
+        conn.commit()
         return rp
+
+    @staticmethod
+    def read_page(url):
+        """Reads the URL and feeds it to the parser."""
+        """Copied and adapted from robotparser.py"""
+        try:
+            f = urllib.request.urlopen(url)
+        except urllib.error.HTTPError as err:
+            if err.code in (401, 403):
+                #Forbidden,unauthorized
+                pass
+            elif err.code >= 400 and err.code < 500:
+                #retry?
+                pass
+        else:
+            raw = f.read()
+            raw = raw.decode("utf-8")
+            return raw
 
     def get_page(self,url,useragent):
         #download and render page ??Selenium??
