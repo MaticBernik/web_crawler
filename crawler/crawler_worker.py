@@ -99,6 +99,11 @@ class Crawler_worker:
     def normalize_url(url):
         return normalize(url)
 
+    @staticmethod
+    def is_gov_url(url):
+        #FIX-IT
+        return ".gov.si" in url
+
 
     def get_current_depth(self,url,normalize_url=False):
         cursor = self.cursor
@@ -106,12 +111,16 @@ class Crawler_worker:
             normalized_url = Crawler_worker.normalize_url(url)
         else:
             normalized_url = url
-        select_statement = """SELECT depth FROM crawldb.frontier WHERE url='"""+normalized_url+"""';"""
+        select_statement = """SELECT depth 
+                              FROM crawldb.frontier INNER JOIN crawldb.page ON crawldb.frontier.id = crawldb.page.id
+                              WHERE url='"""+normalized_url+"""';"""
         cursor.execute(select_statement)
         current_depth = cursor.fetchone()[0]
         return current_depth
 
-    def process_robots_file(self,url):
+
+
+    def get_robots(self,url):
         #extract domain base url
         #check for existance of robots.txt
         #process robots.txt (User-agent, Allow, Disallow, Crawl-delay and Sitemap)??
@@ -133,52 +142,6 @@ class Crawler_worker:
             rp.read()
             Crawler_worker.cache_robots[domain_url]=rp
         Crawler_worker.cache_robots_lock.release()
-        robots_content=rp.raw
-        sitemap_list=rp.sitemaps
-        sitemap_content=''
-        for sitemap in sitemap_list:
-            tmp=Crawler_worker.read_page(sitemap)
-            if tmp is not None:
-                sitemap_content+=tmp
-        ##### if sitemap data not already in DV --> insert#####
-        i_r=rp.robots_exists #robot.txt file exists
-        i_s=sitemap_content != '' #sitemap exists
-        '''
-        insert_statement = """INSERT INTO crawldb.site (domain"""\
-                              + (',robots_content' if i_r else '')\
-                              + (', sitemap_content' if i_s else '')+""")
-                              VALUES (%s"""\
-                              + (', %s' if i_r else '')\
-                              + (', %s' if i_s else '')+""")
-                              ON CONFLICT DO NOTHING;"""
-        insert_values=[domain_url]
-        if i_r:
-            insert_values.append(robots_content)
-        if i_s:
-            insert_values.append(sitemap_content)
-        insert_values = tuple(insert_values)
-        print("INSERT VALUES", len(insert_values))
-        '''
-        insert_statement = """INSERT INTO crawldb.site (domain"""\
-                              + (',robots_content' if i_r else '')\
-                              + (', sitemap_content' if i_s else '')+""")
-                              SELECT %s"""\
-                              + (', %s' if i_r else '')\
-                              + (', %s' if i_s else '')\
-                              + """WHERE NOT EXISTS (
-                                SELECT 1 FROM crawldb.site
-                                WHERE domain = %s
-                                FOR UPDATE SKIP LOCKED LIMIT 1);"""
-        insert_values = [domain_url]
-        if i_r:
-            insert_values.append(robots_content)
-        if i_s:
-            insert_values.append(sitemap_content)
-        insert_values.append(domain_url)
-        insert_values = tuple(insert_values)
-
-        cursor.execute(insert_statement,insert_values)
-        conn.commit()
         return rp
 
     @staticmethod
@@ -253,6 +216,76 @@ class Crawler_worker:
         html_page_count=self.cursor.fetchone()
         return html_page_count[0] > 100000
 
+    @staticmethod
+    def process_sitemap(sitemap):
+        '''
+        process sitemap document and extract hrefs/urls
+        :param sitemap: sitemap document content
+        :return:
+        '''
+        hrefs=['http://e-uprava.gov.si','http://partis.si']
+        return hrefs
+
+    def insert_urls_into_frontier(self,url_list,depth):
+        if len(url_list)>0:
+            cursor=self.cursor
+            page_insert_statement ="""WITH urls(u) 
+                              AS (VALUES """+','.join(['(%s)' for i in range(len(url_list))])+""")
+                              INSERT INTO crawldb.page(url)
+                              (SELECT u FROM urls  
+                              WHERE u NOT IN (
+                                SELECT url from crawldb.page))
+                              RETURNING id;                     
+            """
+            page_insert_values=tuple(url_list)
+            cursor.execute(page_insert_statement, page_insert_values)
+            pages_ids=cursor.fetchall()
+            if len(pages_ids)>0:
+                insert_statement = """INSERT INTO crawldb.frontier(id,depth,status) VALUES """ + ','.join(
+                    ["("+str(id[0])+","+str(depth)+",'waiting')" for id in pages_ids]) + ';'
+                cursor.execute(insert_statement)
+
+
+
+    def handle_robots_sitemaps(self,rp,url):
+        cursor = self.cursor
+        conn = self.db_conn
+        parsed_uri = urlparse(rp.url)
+        domain_name = parsed_uri.netloc
+
+        sitemaps_urls = rp.sitemaps
+        sitemaps = [Crawler_worker.read_page(sitemap) for sitemap in sitemaps_urls]
+        sitemaps_hrefs = [Crawler_worker.process_sitemap(sitemap) for sitemap in sitemaps]
+        sitemaps_hrefs = set([href for sitemap_hrefs in sitemaps_hrefs for href in sitemap_hrefs])
+
+        sitemap_content='\n'.join(sitemaps)
+        robots_content = rp.raw
+
+        ##### if robots and sitemap data not already in DB --> insert#####
+        i_r = rp.robots_exists  # robot.txt file exists
+        i_s = sitemap_content != ''  # sitemap exists
+        insert_statement = """INSERT INTO crawldb.site (domain""" \
+                           + (',robots_content' if i_r else '') \
+                           + (', sitemap_content' if i_s else '') + """)
+                                      SELECT %s""" \
+                           + (', %s' if i_r else '') \
+                           + (', %s' if i_s else '') \
+                           + """WHERE NOT EXISTS (
+                                        SELECT 1 FROM crawldb.site
+                                        WHERE domain = %s
+                                        LIMIT 1);"""
+        insert_values = [domain_name]
+        if i_r:
+            insert_values.append(robots_content)
+        if i_s:
+            insert_values.append(sitemap_content)
+        insert_values.append(domain_name)
+        insert_values = tuple(insert_values)
+        cursor.execute(insert_statement, insert_values)
+        ##### add new urls from sitemaps to  frontier #####
+        self.insert_urls_into_frontier(sitemaps_hrefs,self.get_current_depth(url))
+        conn.commit()
+
     def run(self):
         print(self.id+' RUNNING..')
         self.running = True
@@ -282,7 +315,10 @@ class Crawler_worker:
             time.sleep(3)  # Simulate processing time...REMOVE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
             ##### PROCESS ROBOTS FILE (returns robotparser object) #####
-            rp=self.process_robots_file(current_url)
+            rp=self.get_robots(current_url)
+
+            ##### HANDLE ROBOTS AND SITEMAP DATA #####
+            self.handle_robots_sitemaps(rp,current_url)
 
             ##### RENDER/DOWNLOAD WEBPAGE #####
             useragent="*"
@@ -299,6 +335,10 @@ class Crawler_worker:
             images += images_tmp
             documents += documents_tmp
             hrefs += hrefs_tmp
+
+            ##### FILTER NON .GOV.SI HREFS #####
+            #only hrefs or also images and documents???
+            hrefs = [href_url for href_url in hrefs if Crawler_worker.is_gov_url(href_url)]
 
             ##### FILTER URLS BASED ON ROBOTS FILE #####
             images = [image_url for image_url in images if rp.can_fetch(useragent,image_url)]
