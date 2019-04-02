@@ -67,7 +67,7 @@ def parse_page_html(page_url, page_html):
 
             href = validate_or_join_url(page_url, href)
 
-            if href.endswith('.pdf') or  href.endswith('.doc') or href.endswith('.docx') or href.endswith('.ppt') or href.endswith('.pptx'):
+            if href.endswith('.pdf') or  href.endswith('.doc') or href.endswith('.docx') or href.endswith('.ppt') or href.endswith('.pptx') or href.endswith('.PDF')  or  href.endswith('.DOC') or href.endswith('.DOCX') or href.endswith('.PPT') or href.endswith('.PPTX'):
                 file_urls.append(href)
             else:
                 link_urls.append(href)

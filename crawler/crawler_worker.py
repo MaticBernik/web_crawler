@@ -237,11 +237,6 @@ class Crawler_worker:
 
         images, documents, hrefs = page_parser.parse_page_html(url, content)
 
-        print("==========")
-        print(len(images))
-        print(len(documents))
-        print(len(hrefs))
-        
         return images,documents,hrefs
 
     def early_stop_condition(self):
@@ -324,7 +319,18 @@ class Crawler_worker:
     def get_data_type(self,url):
         #return data type of binary from url
         #data types in database to choose from: 'PDF', 'DOC', 'DOCX', 'PPT', 'PPTX'
-        pass
+        if url.endswith('.pdf') or url.endswith('.PDF'):
+            return 'PDF'
+        if url.endswith('.doc') or url.endswith('.DOC'):
+            return 'DOC'
+        if url.endswith('.docx') or url.endswith('.DOCX'):
+            return 'DOCX'
+        if url.endswith('.ppt') or url.endswith('.PPT'):
+            return 'PPT'
+        if url.endswith('.pptx') or url.endswith('.pptx'):
+            return 'PPTX'
+        
+        return None
 
     @staticmethod
     def domain_locked(domain_url):
@@ -417,11 +423,11 @@ class Crawler_worker:
             hrefs = [Crawler_worker.normalize_url(href_url) for href_url in hrefs]
 
             ##### COLLECT BINARIES ONLY FROM SITES LISTED IN THE INITIAL SEED LIST #####
-            images_content={image_url:dowload_binary(image_url) for image_url in images if image_url in self.frontier_seed_urls}
+            images_content={image_url: dowload_binary(image_url) for image_url in images if image_url in self.frontier_seed_urls}
             documents_content = {document_url: dowload_binary(document_url) for document_url in documents if document_url in self.frontier_seed_urls}
 
             ##### GET DOCUMENT DATA_TYPE #####
-            documents_data_type={document_url:get_data_type(document_url) for document_url in documents}
+            documents_data_type={document_url: self.get_data_type(document_url) for document_url in documents}
 
             ##### WRITE NEW DATA TO DB IN SINGLE TRANSACTION #####
             data={'url' : current_url,
