@@ -44,7 +44,9 @@ def fetch_page(url):
         chrome_driver.get(url)
         page_html = chrome_driver.page_source
         # write_page_html("govtest", page_html)
-    
+    else:
+        return False, None
+
     return response_code, page_html
 
 
