@@ -25,6 +25,19 @@ def unblock_frontier_waiting(conn):
     conn.commit()
     cursor.close()
 
+def empty_tables(conn):
+    '''
+    FOR TESTING
+    Empty tables in DB(page,site,frontier)
+    '''
+    cursor=conn.cursor()
+    cursor.execute('DELETE FROM crawldb.frontier CASCADE;')
+    cursor.execute('DELETE FROM crawldb.page CASCADE;')
+    cursor.execute('DELETE FROM crawldb.site CASCADE;')
+    conn.commit()
+    cursor.close()
+
+
 
 #CONNECT TO DATABASE
 conn = psycopg2.connect(host=DB_HOST,database=DB_NAME, user=DB_USER, password=DB_PASSWORD)
@@ -35,6 +48,7 @@ tables_in_crawldb = cursor.fetchone()[0]
 if tables_in_crawldb==0:
     cursor.execute(open("crawldb.sql", "r").read())
     conn.commit()
+empty_tables(conn) #REMOVE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #INITIALIZE FRONTIER
 cursor.execute("""SELECT count(*) FROM crawldb.page;""")
 pages_nr=cursor.fetchone()[0]
@@ -49,7 +63,7 @@ if pages_nr==0 and frontier_pages_nr==0:
     cursor.execute(frontier_insert)
     conn.commit()
     print('...done!')
-unblock_frontier_waiting(conn) #REMOVE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#unblock_frontier_waiting(conn) #REMOVE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #INITIALIZE AND RUN WORKERS
 print('***Running workers in seperate threads...')
 workers=[Crawler_worker(db_conn=conn,id='WORKER_'+str(i),frontier_seed_urls=FRONTIER_SEED_URLS) for i in range(NR_WORKERS)]
