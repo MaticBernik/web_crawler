@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 from threading import Lock
 import robotparser
 import time
-
+import page_fetcher
 
 
 
@@ -200,8 +200,8 @@ class Crawler_worker:
             return raw
 
     def get_page(self,url,useragent):
-        #download and render page ??Selenium??
-        pass
+        response_code, page_html = page_fetcher.fetch_page(url)
+        return response_code, page_html
 
     def get_hash(self,content):
         #hash content LSH
@@ -286,7 +286,7 @@ class Crawler_worker:
 
             ##### RENDER/DOWNLOAD WEBPAGE #####
             useragent="*"
-            content = self.get_page(url=current_url,useragent=useragent)
+            req_response_code, content = self.get_page(url=current_url,useragent=useragent)
 
             ##### CHECK IF PAGE CONTENT IMPLIES ALREADY PROCESSED PAGE (if it was, mark job as done) #####
             page_hash = self.get_hash(content)
