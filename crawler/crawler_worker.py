@@ -288,7 +288,10 @@ class Crawler_worker:
             useragent="*"
             req_response_code, content = self.get_page(url=current_url,useragent=useragent)
 
+            ## TODO : SKIP IF PAGE FETCHING WAS UNSUCCESSFUL ( MARK PAGE AS COMPLETE IN DATABASE ? )
+
             ##### CHECK IF PAGE CONTENT IMPLIES ALREADY PROCESSED PAGE (if it was, mark job as done) #####
+            ## TODO : COMPARE PAGE BY URL IN DATABASE AND CONTENT 
             page_hash = self.get_hash(content)
             if self.duplicate_page(page_hash):
                 self.remove_URL(current_url)
