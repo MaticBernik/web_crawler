@@ -5,6 +5,7 @@ from threading import Lock
 import robotparser
 import time
 import page_fetcher
+import sitemap_parser
 
 
 
@@ -223,8 +224,11 @@ class Crawler_worker:
         :param sitemap: sitemap document content
         :return:
         '''
-        hrefs=['http://e-uprava.gov.si','http://partis.si']
-        return hrefs
+        response_code, sitemap_urls = sitemap_parser.parse_sitemap(sitemap)
+        if response_code:
+            return sitemap_urls
+        else:
+            return []
 
     def insert_urls_into_frontier(self,url_list,depth):
         if len(url_list)>0:
