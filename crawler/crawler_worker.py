@@ -195,8 +195,17 @@ class Crawler_worker:
         conn.commit()
 
     def duplicate_page(self,page_hash):
+        if page_hash is None:
+            return False
         #check if page with specified page_hash is already in DB
-        pass
+        cursor=self.cursor
+        select_statement = """SELECT EXISTS (
+                                        SELECT 1 FROM crawldb.page 
+                                        WHERE minhash = %s LIMIT 1);"""
+        select_values=(str(page_hash),)
+        cursor.execute(select_statement,select_values)
+        already_exists = cursor.fetchone()[0]
+        return already_exists
 
 
     def parse_page(self,content):
@@ -359,7 +368,8 @@ class Crawler_worker:
                   'depth' : current_depth,
                   'http_status_code' : req_response_code,
                   'html_content' : content,
-                  'minhash':page_hash,
+                  'minhash' : page_hash,
+                  'is_duplicate' : is_duplicate,
                   'image_urls' : images,
                   'document_urls' : documents,
                   'hrefs_urls' : hrefs
