@@ -177,16 +177,14 @@ class Crawler_worker:
         #check if img/document/html...
         pass
 
-    def write_to_DB(self,current_url,images,documents,urls):
+    def write_to_DB(self,data):
         #WITHIN SINGLE TRANSACTION!!!
         #write new data to database
         #and remove current_url from frontier
         #for URLs: DEPTH = DEPTH +1
         return #REMOVE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         conn=self.db_conn
-        cursor=self.cursor
-        urls = list({normalize(u) for u in urls})
-        urls = [u for u in urls if not self.url_in_frontier(u) and not self.url_already_processed(u)]
+        cursor=self.cursor        #urls = [u for u in urls if not self.url_in_frontier(u) and not self.url_already_processed(u)]
         insert_images_statement=""""""
         cursor.execute(insert_images_statement)
         insert_documents_statement=""""""
@@ -330,11 +328,10 @@ class Crawler_worker:
             ## TODO : SKIP IF PAGE FETCHING WAS UNSUCCESSFUL ( MARK PAGE AS COMPLETE IN DATABASE ? )
 
             ##### CHECK IF PAGE CONTENT IMPLIES ALREADY PROCESSED PAGE (if it was, mark job as done) #####
-            ## TODO : COMPARE PAGE BY URL IN DATABASE AND CONTENT 
+            ## TODO : COMPARE PAGE BY CONTENT
             page_hash = self.get_hash(content)
-            if self.duplicate_page(page_hash):
-                self.remove_URL(current_url)
-                continue
+            is_duplicate = self.duplicate_page(page_hash)
+
 
             ##### PARSE WEBPAGE AND EXTRACT IMAGES,DOCUMENTS AND HREFS #####
             images_tmp, documents_tmp, hrefs_tmp = self.parse_page(content)
@@ -362,6 +359,7 @@ class Crawler_worker:
                   'depth' : current_depth,
                   'http_status_code' : req_response_code,
                   'html_content' : content,
+                  'minhash':page_hash,
                   'image_urls' : images,
                   'document_urls' : documents,
                   'hrefs_urls' : hrefs
