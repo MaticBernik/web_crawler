@@ -20,7 +20,7 @@ def validate_request_status(url, reconnect_attempts=3, wait_seconds=4):
 
     while reconnect_attempts > 0:
 
-        response = requests.get(url, verify=False, allow_redirects=True, timeout=50)
+        response = requests.get(url, verify=False, allow_redirects=True, timeout=10)
         
         if response.status_code == 200:
             return True, response.status_code
