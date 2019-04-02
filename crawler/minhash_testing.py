@@ -34,6 +34,8 @@ def main():
     actual_jaccard = float(len(s1.intersection(s2)))/float(len(s1.union(s2)))
     print("Actual Jaccard for page_1 and page_2 is", actual_jaccard)
 
+    print(m1_128)
+    print(type(m1_128))
 
 
 if __name__ == "__main__":

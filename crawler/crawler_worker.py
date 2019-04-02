@@ -447,7 +447,9 @@ class Crawler_worker:
             useragent="*"
             req_response_code, content = self.get_page(url=current_url,useragent=useragent)
 
-            ## TODO : SKIP IF PAGE FETCHING WAS UNSUCCESSFUL ( MARK PAGE AS COMPLETE IN DATABASE ? )
+            if content is None:
+                self.processing_done_URL(current_url)
+                continue
 
             ##### CHECK IF PAGE CONTENT IMPLIES ALREADY PROCESSED PAGE (if it was, mark job as done) #####
             ## TODO : COMPARE PAGE BY CONTENT

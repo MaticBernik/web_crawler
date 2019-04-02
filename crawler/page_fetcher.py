@@ -36,17 +36,21 @@ def write_page_html(name, html):
     with open(name+'.html', 'w') as f:
         f.write(html)
 
-def fetch_page(url):
+def fetch_page(url, number_of_attemtps=3):
 
     valid_url, response_code = validate_request_status(url)
-    
+    page_html = None
+
     if valid_url:
-        chrome_driver = initialize_driver()
-        chrome_driver.get(url)
-        page_html = chrome_driver.page_source
-        # write_page_html("govtest", page_html)
-    else:
-        return False, None
+        while number_of_attemtps > 0:
+            try:
+                chrome_driver = initialize_driver()
+                chrome_driver.get(url)
+                page_html = chrome_driver.page_source
+                break
+            except:
+                number_of_attemtps -= 1
+                time.sleep(10)
 
     return response_code, page_html
 
