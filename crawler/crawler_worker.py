@@ -10,8 +10,12 @@ import sitemap_parser
 
 
 class Crawler_worker:
+    #Lock every entry separately?
     cache_robots={}
     cache_robots_lock=Lock()
+    domain_last_accessed={}
+    domain_last_accessed_lock=Lock()
+    DOMAIN_DEFAULT_MINIMUM_SECONDS_BETWEEN_REQUESTS=2
 
     def is_running(self):
         return self.running
@@ -182,6 +186,21 @@ class Crawler_worker:
         #write new data to database
         #and remove current_url from frontier
         #for URLs: DEPTH = DEPTH +1
+        '''
+        data = {'url': current_url,
+                'domain': current_domain,
+                'depth': current_depth,
+                'http_status_code': req_response_code,
+                'html_content': content,
+                'minhash': page_hash,
+                'is_duplicate': is_duplicate,
+                'image_urls': images,
+                'document_urls': documents,
+                'hrefs_urls': hrefs
+                }
+        '''
+
+
         return #REMOVE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         conn=self.db_conn
         cursor=self.cursor        #urls = [u for u in urls if not self.url_in_frontier(u) and not self.url_already_processed(u)]
@@ -195,8 +214,17 @@ class Crawler_worker:
         conn.commit()
 
     def duplicate_page(self,page_hash):
+        if page_hash is None:
+            return False
         #check if page with specified page_hash is already in DB
-        pass
+        cursor=self.cursor
+        select_statement = """SELECT EXISTS (
+                                        SELECT 1 FROM crawldb.page 
+                                        WHERE minhash = %s LIMIT 1);"""
+        select_values=(str(page_hash),)
+        cursor.execute(select_statement,select_values)
+        already_exists = cursor.fetchone()[0]
+        return already_exists
 
 
     def parse_page(self,content):
@@ -285,6 +313,33 @@ class Crawler_worker:
         self.insert_urls_into_frontier(sitemaps_hrefs,current_depth+1)
         conn.commit()
 
+    def get_data_type(self,url):
+        #return data type of binary from url
+        #data types in database to choose from: 'PDF', 'DOC', 'DOCX', 'PPT', 'PPTX'
+        pass
+
+    @staticmethod
+    def domain_locked(domain_url):
+        '''
+        Check if domain is ready to receive another request respecting crawl delay
+        '''
+        #USE QUEUE!!!
+        cached_domain_robots = Crawler_worker.cache_robots[domain_url]
+        domain__crawl_delay = cached_domain_robots.request_rate[1] if cached_domain_robots.request_rate is not None \
+                              else Crawler_worker.DOMAIN_DEFAULT_MINIMUM_SECONDS_BETWEEN_REQUESTS
+        Crawler_worker.domain_last_accessed_lock.acquire()
+        if domain_url in Crawler_worker.domain_last_accessed:
+            if time.time() < Crawler_worker.domain_last_accessed[domain_url] + domain__crawl_delay:
+                # just sleep and wait-out the remaining time?
+                Crawler_worker.domain_last_accessed_lock.release()
+                return True
+        Crawler_worker.domain_last_accessed[domain_url] = time.time()
+        Crawler_worker.domain_last_accessed_lock.release()
+        return False
+
+
+
+
     def run(self):
         print(self.id+' RUNNING..')
         self.running = True
@@ -353,16 +408,27 @@ class Crawler_worker:
             documents = [Crawler_worker.normalize_url(document_url) for document_url in documents]
             hrefs = [Crawler_worker.normalize_url(href_url) for href_url in hrefs]
 
+            ##### COLLECT BINARIES ONLY FROM SITES LISTED IN THE INITIAL SEED LIST #####
+            images_content={image_url:dowload_binary(image_url) for image_url in images if image_url in self.frontier_seed_urls}
+            documents_content = {document_url: dowload_binary(document_url) for document_url in documents if document_url in self.frontier_seed_urls}
+
+            ##### GET DOCUMENT DATA_TYPE #####
+            documents_data_type={document_url:get_data_type(document_url) for document_url in documents}
+
             ##### WRITE NEW DATA TO DB IN SINGLE TRANSACTION #####
             data={'url' : current_url,
                   'domain' : current_domain,
                   'depth' : current_depth,
                   'http_status_code' : req_response_code,
                   'html_content' : content,
-                  'minhash':page_hash,
+                  'minhash' : page_hash,
+                  'is_duplicate' : is_duplicate,
                   'image_urls' : images,
                   'document_urls' : documents,
-                  'hrefs_urls' : hrefs
+                  'hrefs_urls' : hrefs,
+                  'images_content' : images_content,
+                  'documents_content' : documents_content,
+                  'documents_data_type' : documents_data_type
             }
             self.write_to_DB(data=data)
         print(self.id+' exiting!')
