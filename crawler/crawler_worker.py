@@ -312,8 +312,6 @@ class Crawler_worker:
                 self.processing_done_URL(current_url)
                 continue
 
-            time.sleep(3)  # Simulate processing time...REMOVE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
             ##### PROCESS ROBOTS FILE (returns robotparser object) #####
             rp=self.get_robots(current_url)
 
