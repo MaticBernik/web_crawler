@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 import page_fetcher
 import sitemap_parser
-
+import page_parser
 
 
 class Crawler_worker:
@@ -56,8 +56,9 @@ class Crawler_worker:
         conn = self.db_conn
         normalized_url = normalize(url)
         delete_statement = """DELETE FROM crawldb.frontier 
-                              WHERE id = (SELECT id FROM crawldb.page WHERE url='""" + normalized_url + """');"""
-        cursor.execute(delete_statement)
+                              WHERE id = (SELECT id FROM crawldb.page WHERE url = %s);"""
+        delete_values = (normalized_url,)
+        cursor.execute(delete_statement,delete_values)
         conn.commit()
         return True
 
@@ -65,8 +66,9 @@ class Crawler_worker:
         cursor = self.cursor
         conn = self.db_conn
         normalized_url = normalize(url)
-        update_statement = "UPDATE crawldb.frontier SET status='done' WHERE id = (SELECT id FROM crawldb.page WHERE url = '" + normalized_url + "' LIMIT 1);"
-        cursor.execute(update_statement)
+        update_statement = "UPDATE crawldb.frontier SET status='done' WHERE id = (SELECT id FROM crawldb.page WHERE url = %s LIMIT 1);"
+        update_values=(normalized_url,)
+        cursor.execute(update_statement,update_values)
         conn.commit()
         return True
 
@@ -77,11 +79,11 @@ class Crawler_worker:
             normalized_url = Crawler_worker.normalize_url(url)
         else:
             normalized_url=url
-        #select_statement = """SELECT exists (SELECT 1 FROM crawldb.page WHERE url = '"""+normalized_url+"""' LIMIT 1);"""
         select_statement = """SELECT exists (
                                 SELECT 1 FROM crawldb.page INNER JOIN crawldb.frontier ON crawldb.page.id=crawldb.frontier.id  
-                                WHERE crawldb.frontier.status='done' AND crawldb.page.url = '""" + normalized_url + """' LIMIT 1);"""
-        cursor.execute(select_statement)
+                                WHERE crawldb.frontier.status='done' AND crawldb.page.url = %s LIMIT 1);"""
+        select_values = (normalized_url,)
+        cursor.execute(select_statement,select_values)
         already_exists=cursor.fetchone()[0]
         return already_exists
 
@@ -95,9 +97,10 @@ class Crawler_worker:
         select_statement = """SELECT exists (
                                 SELECT 1 FROM crawldb.frontier 
                                 WHERE id = (
-                                    SELECT id from crawldb.page WHERE url = '""" + normalized_url + """') 
+                                    SELECT id from crawldb.page WHERE url = %s) 
                                 LIMIT 1);"""
-        cursor.execute(select_statement)
+        select_values = (normalized_url,)
+        cursor.execute(select_statement, select_values)
         already_exists = cursor.fetchone()[0]
         return already_exists
 
@@ -233,10 +236,14 @@ class Crawler_worker:
         cursor.execute(update_statement, update_values)
 
         hrefs_pages_id=self.insert_urls_into_frontier(data['hrefs_urls'],data['depth']+1)
-
         if hrefs_pages_id is not None and len(hrefs_pages_id) > 0:
-            insert_statement = 'INSERT INTO link(from_page,to_page) VALUES '+','.join(['(%s)' for i in range(len(hrefs_pages_id))])+';'
-            insert_values=((data['url'],id) for id in hrefs_pages_id)
+            hrefs_pages_id=[x[0] for x in hrefs_pages_id]
+            insert_statement = 'INSERT INTO crawldb.link(from_page,to_page) VALUES '+','.join(['(%s,%s)' for i in range(len(hrefs_pages_id))])+';'
+            #insert_values=tuple([(current_page_id,id) for id in hrefs_pages_id])
+            insert_values=[]
+            for id in hrefs_pages_id:
+                insert_values+=[current_page_id,id]
+            insert_values=tuple(insert_values)
             cursor.execute(insert_statement,insert_values)
 
 
@@ -256,13 +263,16 @@ class Crawler_worker:
         return already_exists
 
 
-    def parse_page(self,content):
+    def parse_page(self, url, content):
         #parse html page and return three lists:
         #list of images, list of hrefs and list of documents
         #each list contains URLs (or tuples??)
         images=[]
         documents=[]
         hrefs=[]
+
+        images, documents, hrefs = page_parser.parse_page_html(url, content)
+
         return images,documents,hrefs
 
     def early_stop_condition(self):
@@ -285,14 +295,30 @@ class Crawler_worker:
     def insert_urls_into_frontier(self,url_list,depth):
         if len(url_list)>0:
             cursor=self.cursor
+            url_list = list(set(url_list))
+
             page_insert_statement ="""WITH urls(u) 
                               AS (VALUES """+','.join(['(%s)' for i in range(len(url_list))])+""")
                               INSERT INTO crawldb.page(url)
                               (SELECT u FROM urls  
                               WHERE u NOT IN (
-                                SELECT url from crawldb.page))
+                                SELECT url from crawldb.page) FOR UPDATE SKIP LOCKED)
                               RETURNING id;                     
             """
+
+            '''
+            page_insert_statement = """WITH urls(u) 
+                              AS (VALUES """+','.join(['(%s)' for i in range(len(url_list))])+""")
+                              INSERT INTO crawldb.page(url)
+                              SELECT urls.u
+                              FROM urls
+                              WHERE NOT EXISTS (
+                              SELECT 1 FROM crawldb.page WHERE crawldb.page.url = urls.u)
+                              FOR UPDATE SKIP LOCKED
+                              RETURNING crawldb.page.id; """
+            '''
+
+
             page_insert_values=tuple(url_list)
             cursor.execute(page_insert_statement, page_insert_values)
             pages_ids=cursor.fetchall()
@@ -346,7 +372,18 @@ class Crawler_worker:
     def get_data_type(self,url):
         #return data type of binary from url
         #data types in database to choose from: 'PDF', 'DOC', 'DOCX', 'PPT', 'PPTX'
-        pass
+        if url.endswith('.pdf') or url.endswith('.PDF'):
+            return 'PDF'
+        if url.endswith('.doc') or url.endswith('.DOC'):
+            return 'DOC'
+        if url.endswith('.docx') or url.endswith('.DOCX'):
+            return 'DOCX'
+        if url.endswith('.ppt') or url.endswith('.PPT'):
+            return 'PPT'
+        if url.endswith('.pptx') or url.endswith('.pptx'):
+            return 'PPTX'
+        
+        return None
 
     @staticmethod
     def domain_locked(domain):
@@ -419,7 +456,7 @@ class Crawler_worker:
 
 
             ##### PARSE WEBPAGE AND EXTRACT IMAGES,DOCUMENTS AND HREFS #####
-            images_tmp, documents_tmp, hrefs_tmp = self.parse_page(content)
+            images_tmp, documents_tmp, hrefs_tmp = self.parse_page(current_url, content)
             images += images_tmp
             documents += documents_tmp
             hrefs += hrefs_tmp
@@ -444,11 +481,11 @@ class Crawler_worker:
             hrefs = [href_url for href_url in hrefs if rp.can_fetch(useragent, href_url)]
 
             ##### COLLECT BINARIES ONLY FROM SITES LISTED IN THE INITIAL SEED LIST #####
-            images_content={image_url:dowload_binary(image_url) for image_url in images if image_url in self.frontier_seed_urls}
+            images_content={image_url: dowload_binary(image_url) for image_url in images if image_url in self.frontier_seed_urls}
             documents_content = {document_url: dowload_binary(document_url) for document_url in documents if document_url in self.frontier_seed_urls}
 
             ##### GET DOCUMENT DATA_TYPE #####
-            documents_data_type={document_url:self.get_data_type(document_url) for document_url in documents}
+            documents_data_type={document_url: self.get_data_type(document_url) for document_url in documents}
 
             ##### WRITE NEW DATA TO DB IN SINGLE TRANSACTION #####
             data={'url' : current_url,

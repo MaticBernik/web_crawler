@@ -32,9 +32,9 @@ def empty_tables(conn):
     '''
     cursor=conn.cursor()
     cursor.execute('DELETE FROM crawldb.frontier CASCADE;')
+    cursor.execute('DELETE FROM crawldb.link CASCADE;')
     cursor.execute('DELETE FROM crawldb.page CASCADE;')
     cursor.execute('DELETE FROM crawldb.site CASCADE;')
-    cursor.execute('DELETE FROM crawldb.link CASCADE;')
     conn.commit()
     cursor.close()
 
@@ -84,7 +84,7 @@ while True:
     #EXIT WHEN ALL WORKERS ARE DONE
     if all([not worker.is_running() for worker in workers]):
         break
-    #time.sleep(FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS)
+    time.sleep(FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS)
 cursor.close()
 conn.close()
 print('***...DONE!')
