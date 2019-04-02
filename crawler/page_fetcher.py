@@ -2,7 +2,8 @@ import requests
 import time
 from selenium import webdriver  
 from selenium.webdriver.common.keys import Keys  
-from selenium.webdriver.chrome.options import Options  
+from selenium.webdriver.chrome.options import Options
+import shutil
 
 requests.packages.urllib3.disable_warnings()
 
@@ -11,7 +12,7 @@ def initialize_driver():
     options.add_argument("--headless")
 
     # UBUNTU : whereis chromedriver > /usr/bin/chromedriver
-    chrome_driver_location = '/usr/bin/chromedriver'
+    chrome_driver_location = shutil.which("chromedriver")
     driver = webdriver.Chrome(chrome_driver_location, options=options)
 
     return driver
