@@ -6,7 +6,7 @@ import robotparser
 import time
 import page_fetcher
 import sitemap_parser
-
+import page_parser
 
 
 class Crawler_worker:
@@ -227,13 +227,21 @@ class Crawler_worker:
         return already_exists
 
 
-    def parse_page(self,content):
+    def parse_page(self, url, content):
         #parse html page and return three lists:
         #list of images, list of hrefs and list of documents
         #each list contains URLs (or tuples??)
         images=[]
         documents=[]
         hrefs=[]
+
+        images, documents, hrefs = page_parser.parse_page_html(url, content)
+
+        print("==========")
+        print(len(images))
+        print(len(documents))
+        print(len(hrefs))
+        
         return images,documents,hrefs
 
     def early_stop_condition(self):
@@ -389,7 +397,7 @@ class Crawler_worker:
 
 
             ##### PARSE WEBPAGE AND EXTRACT IMAGES,DOCUMENTS AND HREFS #####
-            images_tmp, documents_tmp, hrefs_tmp = self.parse_page(content)
+            images_tmp, documents_tmp, hrefs_tmp = self.parse_page(current_url, content)
             images += images_tmp
             documents += documents_tmp
             hrefs += hrefs_tmp

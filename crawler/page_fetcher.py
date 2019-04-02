@@ -54,6 +54,7 @@ def fetch_page(url):
 def main():
     page_url = "https://e-uprava.gov.si/"
     fetch_page(page_url)
+    print("Complete")
 
 
 if __name__ == "__main__":
