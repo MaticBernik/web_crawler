@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 from threading import Lock
 import robotparser
 import time
+from datetime import datetime
 import page_fetcher
 import sitemap_parser
 
@@ -187,31 +188,59 @@ class Crawler_worker:
         #and remove current_url from frontier
         #for URLs: DEPTH = DEPTH +1
         '''
-        data = {'url': current_url,
-                'domain': current_domain,
-                'depth': current_depth,
-                'http_status_code': req_response_code,
-                'html_content': content,
-                'minhash': page_hash,
-                'is_duplicate': is_duplicate,
-                'image_urls': images,
-                'document_urls': documents,
-                'hrefs_urls': hrefs
-                }
+        data={'url' : current_url,
+                  'domain' : current_domain,
+                  'depth' : current_depth,
+                  'http_status_code' : req_response_code,
+                  'html_content' : content,
+                  'minhash' : page_hash,
+                  'is_duplicate' : is_duplicate,
+                  'image_urls' : images,
+                  'document_urls' : documents,
+                  'hrefs_urls' : hrefs,
+                  'images_content' : images_content,
+                  'documents_content' : documents_content,
+                  'documents_data_type' : documents_data_type
+            }
         '''
+        cursor = self.cursor
+        #get current page id
+        select_statement = 'SELECT id from crawldb.page where url = %s;'
+        select_values = (data['url'],)
+        cursor.execute(select_statement,select_values)
+        current_page_id = cursor.fetchone()[0]
+        #get current domain site id
+        select_statement = 'SELECT id from crawldb.site where domain = %s;'
+        select_values = (data['domain'],)
+        cursor.execute(select_statement, select_values)
+        current_site_id = cursor.fetchone()[0]
+
+        update_statement = 'UPDATE crawldb.page SET '+\
+                           'site_id = %s '+\
+                           ',accessed_time = %s '+ \
+                           ',page_type_code = %s '+ \
+                           (',html_content = %s ' if data['html_content'] is not None else '')+\
+                           (',http_status_code = %s ' if data['http_status_code'] is not None else '')+\
+                           'WHERE id = %s;'
+        page_type_code = 'DUPLICATE' if data['is_duplicate'] else 'HTML'
+        update_values = [current_site_id,datetime.now(),page_type_code]
+        if data['html_content'] is not None:
+            update_values.append(data['html_content'])
+        if data['http_status_code'] is not None:
+            update_values.append(data['http_status_code'])
+        update_values.append(current_page_id)
+        update_values=tuple(update_values)
+        cursor.execute(update_statement, update_values)
+
+        hrefs_pages_id=self.insert_urls_into_frontier(data['hrefs_urls'],data['depth']+1)
+
+        if hrefs_pages_id is not None and len(hrefs_pages_id) > 0:
+            insert_statement = 'INSERT INTO link(from_page,to_page) VALUES '+','.join(['(%s)' for i in range(len(hrefs_pages_id))])+';'
+            insert_values=((data['url'],id) for id in hrefs_pages_id)
+            cursor.execute(insert_statement,insert_values)
 
 
-        return #REMOVE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        conn=self.db_conn
-        cursor=self.cursor        #urls = [u for u in urls if not self.url_in_frontier(u) and not self.url_already_processed(u)]
-        insert_images_statement=""""""
-        cursor.execute(insert_images_statement)
-        insert_documents_statement=""""""
-        cursor.execute(insert_documents_statement)
-        insert_urls_statement=""""""
-        cursor.execute(insert_urls_statement)
-        self.remove_URL(current_url)
-        conn.commit()
+
 
     def duplicate_page(self,page_hash):
         if page_hash is None:
@@ -271,6 +300,7 @@ class Crawler_worker:
                 insert_statement = """INSERT INTO crawldb.frontier(id,depth,status) VALUES """ + ','.join(
                     ["("+str(id[0])+","+str(depth)+",'waiting')" for id in pages_ids]) + ';'
                 cursor.execute(insert_statement)
+            return pages_ids
 
 
 
@@ -319,21 +349,21 @@ class Crawler_worker:
         pass
 
     @staticmethod
-    def domain_locked(domain_url):
+    def domain_locked(domain):
         '''
         Check if domain is ready to receive another request respecting crawl delay
         '''
         #USE QUEUE!!!
-        cached_domain_robots = Crawler_worker.cache_robots[domain_url]
-        domain__crawl_delay = cached_domain_robots.request_rate[1] if cached_domain_robots.request_rate is not None \
+        cached_domain_robots = Crawler_worker.cache_robots[domain]
+        domain_crawl_delay = cached_domain_robots.request_rate[1] if cached_domain_robots.request_rate is not None \
                               else Crawler_worker.DOMAIN_DEFAULT_MINIMUM_SECONDS_BETWEEN_REQUESTS
         Crawler_worker.domain_last_accessed_lock.acquire()
         if domain_url in Crawler_worker.domain_last_accessed:
-            if time.time() < Crawler_worker.domain_last_accessed[domain_url] + domain__crawl_delay:
+            if time.time() < Crawler_worker.domain_last_accessed[domain] + domain_crawl_delay:
                 # just sleep and wait-out the remaining time?
                 Crawler_worker.domain_last_accessed_lock.release()
                 return True
-        Crawler_worker.domain_last_accessed[domain_url] = time.time()
+        Crawler_worker.domain_last_accessed[domain] = time.time()
         Crawler_worker.domain_last_accessed_lock.release()
         return False
 
@@ -394,6 +424,16 @@ class Crawler_worker:
             documents += documents_tmp
             hrefs += hrefs_tmp
 
+            ##### NORMALIZE URLS #####
+            images = [Crawler_worker.normalize_url(image_url) for image_url in images]
+            documents = [Crawler_worker.normalize_url(document_url) for document_url in documents]
+            hrefs = [Crawler_worker.normalize_url(href_url) for href_url in hrefs]
+
+            ##### FILTER URLS ALREADY PROCESSED #####
+            images = [Crawler_worker.normalize_url(image_url) for image_url in images if not self.url_already_processed(image_url)]
+            documents = [Crawler_worker.normalize_url(document_url) for document_url in documents if not self.url_already_processed(document_url)]
+            hrefs = [Crawler_worker.normalize_url(href_url) for href_url in hrefs if not self.url_already_processed(href_url)]
+
             ##### FILTER NON .GOV.SI HREFS #####
             #only hrefs or also images and documents???
             hrefs = [href_url for href_url in hrefs if Crawler_worker.is_gov_url(href_url)]
@@ -403,17 +443,12 @@ class Crawler_worker:
             documents = [document_url for document_url in documents if rp.can_fetch(useragent, document_url)]
             hrefs = [href_url for href_url in hrefs if rp.can_fetch(useragent, href_url)]
 
-            ##### NORMALIZE URLS #####
-            images = [Crawler_worker.normalize_url(image_url) for image_url in images]
-            documents = [Crawler_worker.normalize_url(document_url) for document_url in documents]
-            hrefs = [Crawler_worker.normalize_url(href_url) for href_url in hrefs]
-
             ##### COLLECT BINARIES ONLY FROM SITES LISTED IN THE INITIAL SEED LIST #####
             images_content={image_url:dowload_binary(image_url) for image_url in images if image_url in self.frontier_seed_urls}
             documents_content = {document_url: dowload_binary(document_url) for document_url in documents if document_url in self.frontier_seed_urls}
 
             ##### GET DOCUMENT DATA_TYPE #####
-            documents_data_type={document_url:get_data_type(document_url) for document_url in documents}
+            documents_data_type={document_url:self.get_data_type(document_url) for document_url in documents}
 
             ##### WRITE NEW DATA TO DB IN SINGLE TRANSACTION #####
             data={'url' : current_url,
@@ -431,6 +466,7 @@ class Crawler_worker:
                   'documents_data_type' : documents_data_type
             }
             self.write_to_DB(data=data)
+            self.processing_done_URL(current_url)
         print(self.id+' exiting!')
         self.cursor.close()
         self.running = False

@@ -34,6 +34,7 @@ def empty_tables(conn):
     cursor.execute('DELETE FROM crawldb.frontier CASCADE;')
     cursor.execute('DELETE FROM crawldb.page CASCADE;')
     cursor.execute('DELETE FROM crawldb.site CASCADE;')
+    cursor.execute('DELETE FROM crawldb.link CASCADE;')
     conn.commit()
     cursor.close()
 
