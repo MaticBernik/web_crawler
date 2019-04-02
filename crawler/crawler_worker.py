@@ -224,11 +224,7 @@ class Crawler_worker:
         :param sitemap: sitemap document content
         :return:
         '''
-        response_code, sitemap_urls = sitemap_parser.parse_sitemap(sitemap)
-        if response_code:
-            return sitemap_urls
-        else:
-            return []
+        return sitemap_parser.parse_sitemap_xml(sitemap)
 
     def insert_urls_into_frontier(self,url_list,depth):
         if len(url_list)>0:

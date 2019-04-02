@@ -31,6 +31,17 @@ def parse_sitemap(url):
 
     return response_code, sitemap_urls
 
+def parse_sitemap_xml(xml_file):
+
+    if xml_file is not None:
+        soup = BeautifulSoup(xml_file, "lxml")
+        url_tags = soup.find_all("url")
+        sitemap_urls = [ sitemap.findNext("loc").text for sitemap in url_tags  ]
+    else:
+        return []
+
+    return sitemap_urls
+
 
 def main():
     sitemap_url = "http://www.e-prostor.gov.si/?eID=dd_googlesitemap"
