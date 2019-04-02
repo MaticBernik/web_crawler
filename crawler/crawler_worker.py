@@ -349,7 +349,7 @@ class Crawler_worker:
             ##### NORMALIZE URLS #####
             images = [Crawler_worker.normalize_url(image_url) for image_url in images]
             documents = [Crawler_worker.normalize_url(document_url) for document_url in documents]
-            hrefs = [Crawler_worker(href_url) for href_url in hrefs]
+            hrefs = [Crawler_worker.normalize_url(href_url) for href_url in hrefs]
 
             ##### WRITE NEW DATA TO DB IN SINGLE TRANSACTION #####
             self.write_to_DB(current_url=current_url, images=images, documents=documents, urls=hrefs)

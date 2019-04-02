@@ -1,1 +1,4 @@
 crawler/connect_DB.json
+crawler/__pycache__
+crawler/test.py
+crawler/test_canonical.py
