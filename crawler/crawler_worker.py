@@ -131,17 +131,18 @@ class Crawler_worker:
         cursor=self.cursor
         conn=self.db_conn
         parsed_uri = urlparse(url)
+        domain = parsed_uri.netloc
         domain_url = '{uri.scheme}://{uri.netloc}/'.format(uri=parsed_uri)
         ##### restore from cache if stored else create #####
         Crawler_worker.cache_robots_lock.acquire()
-        if domain_url in Crawler_worker.cache_robots:
-            rp=Crawler_worker.cache_robots[domain_url]
+        if domain in Crawler_worker.cache_robots:
+            rp=Crawler_worker.cache_robots[domain]
         else:
             robots_url = domain_url + 'robots.txt'
             rp = robotparser.RobotFileParser()
             rp.set_url(robots_url)
             rp.read()
-            Crawler_worker.cache_robots[domain_url]=rp
+            Crawler_worker.cache_robots[domain]=rp
         Crawler_worker.cache_robots_lock.release()
         return rp
 
@@ -176,16 +177,14 @@ class Crawler_worker:
         #check if img/document/html...
         pass
 
-    def write_to_DB(self,current_url,images,documents,urls):
+    def write_to_DB(self,data):
         #WITHIN SINGLE TRANSACTION!!!
         #write new data to database
         #and remove current_url from frontier
         #for URLs: DEPTH = DEPTH +1
         return #REMOVE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         conn=self.db_conn
-        cursor=self.cursor
-        urls = list({normalize(u) for u in urls})
-        urls = [u for u in urls if not self.url_in_frontier(u) and not self.url_already_processed(u)]
+        cursor=self.cursor        #urls = [u for u in urls if not self.url_in_frontier(u) and not self.url_already_processed(u)]
         insert_images_statement=""""""
         cursor.execute(insert_images_statement)
         insert_documents_statement=""""""
@@ -247,11 +246,11 @@ class Crawler_worker:
 
 
 
-    def handle_robots_sitemaps(self,rp,url):
+    def handle_robots_sitemaps(self,rp,current_depth):
         cursor = self.cursor
         conn = self.db_conn
         parsed_uri = urlparse(rp.url)
-        domain_name = parsed_uri.netloc
+        domain = parsed_uri.netloc
 
         sitemaps_urls = rp.sitemaps
         sitemaps = [Crawler_worker.read_page(sitemap) for sitemap in sitemaps_urls]
@@ -274,16 +273,16 @@ class Crawler_worker:
                                         SELECT 1 FROM crawldb.site
                                         WHERE domain = %s
                                         LIMIT 1);"""
-        insert_values = [domain_name]
+        insert_values = [domain]
         if i_r:
             insert_values.append(robots_content)
         if i_s:
             insert_values.append(sitemap_content)
-        insert_values.append(domain_name)
+        insert_values.append(domain)
         insert_values = tuple(insert_values)
         cursor.execute(insert_statement, insert_values)
         ##### add new urls from sitemaps to  frontier #####
-        self.insert_urls_into_frontier(sitemaps_hrefs,self.get_current_depth(url))
+        self.insert_urls_into_frontier(sitemaps_hrefs,current_depth+1)
         conn.commit()
 
     def run(self):
@@ -315,8 +314,12 @@ class Crawler_worker:
             ##### PROCESS ROBOTS FILE (returns robotparser object) #####
             rp=self.get_robots(current_url)
 
+            ##### GET CURRENT DEPTH AND DOMAIN #####
+            current_depth = self.get_current_depth(current_url)
+            current_domain = urlparse(current_url).netloc
+
             ##### HANDLE ROBOTS AND SITEMAP DATA #####
-            self.handle_robots_sitemaps(rp,current_url)
+            self.handle_robots_sitemaps(rp,current_depth)
 
             ##### RENDER/DOWNLOAD WEBPAGE #####
             useragent="*"
@@ -325,11 +328,10 @@ class Crawler_worker:
             ## TODO : SKIP IF PAGE FETCHING WAS UNSUCCESSFUL ( MARK PAGE AS COMPLETE IN DATABASE ? )
 
             ##### CHECK IF PAGE CONTENT IMPLIES ALREADY PROCESSED PAGE (if it was, mark job as done) #####
-            ## TODO : COMPARE PAGE BY URL IN DATABASE AND CONTENT 
+            ## TODO : COMPARE PAGE BY CONTENT
             page_hash = self.get_hash(content)
-            if self.duplicate_page(page_hash):
-                self.remove_URL(current_url)
-                continue
+            is_duplicate = self.duplicate_page(page_hash)
+
 
             ##### PARSE WEBPAGE AND EXTRACT IMAGES,DOCUMENTS AND HREFS #####
             images_tmp, documents_tmp, hrefs_tmp = self.parse_page(content)
@@ -349,10 +351,20 @@ class Crawler_worker:
             ##### NORMALIZE URLS #####
             images = [Crawler_worker.normalize_url(image_url) for image_url in images]
             documents = [Crawler_worker.normalize_url(document_url) for document_url in documents]
-            hrefs = [Crawler_worker(href_url) for href_url in hrefs]
+            hrefs = [Crawler_worker.normalize_url(href_url) for href_url in hrefs]
 
             ##### WRITE NEW DATA TO DB IN SINGLE TRANSACTION #####
-            self.write_to_DB(current_url=current_url, images=images, documents=documents, urls=hrefs)
+            data={'url' : current_url,
+                  'domain' : current_domain,
+                  'depth' : current_depth,
+                  'http_status_code' : req_response_code,
+                  'html_content' : content,
+                  'minhash':page_hash,
+                  'image_urls' : images,
+                  'document_urls' : documents,
+                  'hrefs_urls' : hrefs
+            }
+            self.write_to_DB(data=data)
         print(self.id+' exiting!')
         self.cursor.close()
         self.running = False
