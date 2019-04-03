@@ -681,8 +681,8 @@ class Crawler_worker:
         while True:
             try:
                 self.run_logic()
-            except:
-                print(self.id+' EXCEPTION!!!!!!!! restarting worker..')
+            except Exception as e:
+                print(self.id+' EXCEPTION!!!!!!!! restarting worker..',str(e))
             else:
                 break;
         print(self.id+' exiting!')
