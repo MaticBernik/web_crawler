@@ -130,6 +130,7 @@ class Crawler_worker:
         current_depth = cursor.fetchone()[0]
         return current_depth
 
+    '''
     def get_robots(self,url):
         #extract domain base url
         #check for existance of robots.txt
@@ -156,6 +157,40 @@ class Crawler_worker:
                 Crawler_worker.cache_robots[domain]=rp
         except Exception as e:
             print(self.id,'get_robots() EXCEPTION!!!!!',e)
+        Crawler_worker.cache_robots_lock.release()
+        self.cache_robots_lock_timestamp = None
+        return rp
+    '''
+
+    def get_robots(self,url):
+        #extract domain base url
+        #check for existance of robots.txt
+        #process robots.txt (User-agent, Allow, Disallow, Crawl-delay and Sitemap)??
+        #If a sitemap is defined shuld all the URLs defined within it be added to the frontier exclusively or additionaly
+        #If site not already in DB, write it there
+        #else just try to find site's RP object in local cache
+        cursor=self.cursor
+        conn=self.db_conn
+        parsed_uri = urlparse(url)
+        domain = parsed_uri.netloc
+        domain_url = '{uri.scheme}://{uri.netloc}/'.format(uri=parsed_uri)
+        ##### restore from cache if stored else create #####
+        if domain in Crawler_worker.cache_robots:
+            rp = Crawler_worker.cache_robots[domain]
+        else:
+            robots_url = domain_url + 'robots.txt'
+            rp = robotparser.RobotFileParser()
+            rp.set_url(robots_url)
+            try:
+                rp.read()
+            except Exception as e:
+                print(self.id,'EXCEPTION get_robots()',e)
+                pass
+
+        Crawler_worker.cache_robots_lock.acquire()
+        self.cache_robots_lock_timestamp = time.time()
+        if domain not in Crawler_worker.cache_robots:
+            Crawler_worker.cache_robots[domain] = rp
         Crawler_worker.cache_robots_lock.release()
         self.cache_robots_lock_timestamp = None
         return rp
