@@ -572,10 +572,7 @@ class Crawler_worker:
         return response_code, binary_file
 
 
-
-    def run(self):
-        print(self.id+' RUNNING..')
-        self.running = True
+    def run_logic(self):
         while True:
             images = []
             documents = []
@@ -677,6 +674,17 @@ class Crawler_worker:
             }
             self.write_to_DB(data=data)
             self.processing_done_URL(current_url)
+
+    def run(self):
+        print(self.id+' RUNNING..')
+        self.running = True
+        while True:
+            try:
+                self.run_logic()
+            except:
+                print(self.id+' EXCEPTION!!!!!!!! restarting worker..')
+            else:
+                break;
         print(self.id+' exiting!')
         self.cursor.close()
         self.running = False

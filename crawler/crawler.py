@@ -86,8 +86,11 @@ while True:
     update_statement="UPDATE crawldb.frontier SET processing_start_time=NULL, status='waiting' WHERE status='processing' AND processing_start_time < NOW() - INTERVAL '"+str(FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS)+" seconds';"
     cursor.execute(update_statement)
     conn.commit()
+
+    nr_workers_running = sum([worker.is_running() for worker in workers])
+    #print("***NR OF RUNNING WORKERS:",nr_workers_running)
     #EXIT WHEN ALL WORKERS ARE DONE
-    if all([not worker.is_running() for worker in workers]):
+    if nr_workers_running==0:
         break
     time.sleep(FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS)
 cursor.close()
