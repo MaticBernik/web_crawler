@@ -210,6 +210,8 @@ class Crawler_worker:
                   'documents_data_type' : documents_data_type
             }
         '''
+        #Update 1 DataFrame instead of many dicts!!
+
         cursor = self.cursor
         #get current page id
         select_statement = 'SELECT id from crawldb.page where url = %s;'
@@ -259,6 +261,8 @@ class Crawler_worker:
             cursor.execute(insert_statement,insert_values)
 
         if len(data['image_urls'])>0:
+            #filter out image urls longer than 3000 char
+            data['image_urls']=[url for url in data['image_urls'] if len(url)<=3000]
             # insert pages for images
             insert_statement = """WITH urls(u) 
                                   AS (VALUES """+','.join(['(%s)' for i in range(len(data['image_urls']))])+""")
@@ -289,9 +293,7 @@ class Crawler_worker:
                     site_id=cursor.fetchone()
                 site_id=site_id[0]
                 domain_site_id[image_domain]=site_id
-
-
-
+            #fill out page data for images
             for image_page_id,image_page_url in image_pages_ids:
                 if not image_id_domain[image_page_id]:
                     continue
@@ -308,8 +310,35 @@ class Crawler_worker:
                     update_values.append(data['images_content'][image_id_url[image_page_id]][0])
                 update_values.append(image_page_id)
                 update_values = tuple(update_values)
-                print('UPDATE VALUES',update_values)
                 cursor.execute(update_statement, update_values)
+            # insert into image table
+            '''
+            data['images_content'][data['image_urls'][0]] = (
+            100, 'JPEG binary image data example blablbalbal')  # DELETEEEE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            '''
+            for image_url, (http_code, image_content) in data['images_content'].items():
+                image_page_id = [id for id, url in image_id_url.items() if url == image_url]
+                if len(image_page_id)==0:
+                    continue
+                else:
+                    image_page_id=image_page_id[0]
+                content_type=image_url[image_url.rfind('.')+1:].upper()
+                if len(content_type)>=4:
+                    if "PNG" in content_type.upper():
+                        content_type="PNG"
+                    elif "JPG" in content_type.upper():
+                        content_type="JPG"
+                    elif "GIF" in content_type.upper():
+                        content_type="GIF"
+                    elif 'IMAGE/' in content_type:
+                        start_idx=content_type.index('IMAGE/')+len('IMAGE/')
+                        content_type=content_type[start_idx:start_idx+3]
+                file_name=image_url[image_url.rfind('/')+1:]
+                insert_statement='INSERT INTO crawldb.image(page_id,filename,content_type,data,accessed_time) VALUES(%s,%s,%s,%s,%s);'
+                insert_values=(image_page_id,file_name,content_type,image_content,datetime.now())
+                cursor.execute(insert_statement,insert_values)
+
+
 
 
 
