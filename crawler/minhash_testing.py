@@ -1,4 +1,4 @@
-from datasketch import MinHash
+from datasketch import MinHash, LeanMinHash
 #datasketch packages @ https://github.com/ekzhu/datasketch
 import page_fetcher
 import time
@@ -37,6 +37,17 @@ def main():
     print(m1_128)
     print(type(m1_128))
 
+    lean_m1 = LeanMinHash(m1)
+    lean_m2 = LeanMinHash(m2)
+
+    buf = bytearray(lean_m1.bytesize())
+    ser_lm1 = lean_m1.serialize(buf)
+    print(ser_lm1)
+
+
+    buf = bytearray(lean_m2.bytesize())
+    ser_lm2 = lean_m2.serialize(buf)
+    print(ser_lm2)
 
 if __name__ == "__main__":
     main()
