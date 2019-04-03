@@ -38,6 +38,9 @@ def main():
     print(type(m1_128))
 
     lean_m1 = LeanMinHash(m1)
+    print("STRING:L ", str(lean_m1))
+    print("INT: ", int(lean_m1))
+    print("FLOAT: ", float(lean_m1))
     lean_m2 = LeanMinHash(m2)
 
     buf = bytearray(lean_m1.bytesize())
@@ -48,6 +51,8 @@ def main():
     buf = bytearray(lean_m2.bytesize())
     ser_lm2 = lean_m2.serialize(buf)
     print(ser_lm2)
+
+    print(lean_m1.__hash__)
 
 if __name__ == "__main__":
     main()

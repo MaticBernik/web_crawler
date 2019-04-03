@@ -1,4 +1,5 @@
-from urltools import normalize
+# from urltools import normalize
+from url_normalize import url_normalize as normalize
 import urllib
 from urllib.parse import urlparse
 from threading import Lock
@@ -16,7 +17,7 @@ class Crawler_worker:
     cache_robots_lock=Lock()
     domain_last_accessed={}
     domain_last_accessed_lock=Lock()
-    DOMAIN_DEFAULT_MINIMUM_SECONDS_BETWEEN_REQUESTS=2
+    DOMAIN_DEFAULT_MINIMUM_SECONDS_BETWEEN_REQUESTS=5
 
     def is_running(self):
         return self.running
