@@ -34,10 +34,11 @@ def unblock_frontier_waiting(conn):
 def empty_tables(conn):
     '''
     FOR TESTING
-    Empty tables in DB(page,site,frontier)
+    Empty tables in DB
     '''
     cursor=conn.cursor()
     cursor.execute('DELETE FROM crawldb.frontier CASCADE;')
+    cursor.execute('DELETE FROM crawldb.page_data CASCADE;')
     cursor.execute('DELETE FROM crawldb.link CASCADE;')
     cursor.execute('DELETE FROM crawldb.image CASCADE;')
     cursor.execute('DELETE FROM crawldb.page CASCADE;')
