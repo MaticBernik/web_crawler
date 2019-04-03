@@ -431,7 +431,8 @@ class Crawler_worker:
     def dowload_binary(url):
         #dowload binary data (image or document)
         #Return tuple of form (http_status_code,content)
-        return ()
+        response_code, binary_file = page_parser.fetch_file_content(url)
+        return response_code, binary_file
 
 
 
