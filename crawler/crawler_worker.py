@@ -19,7 +19,7 @@ class Crawler_worker:
     cache_robots_lock=Lock()
     domain_last_accessed={}
     domain_last_accessed_lock=Lock()
-    DOMAIN_DEFAULT_MINIMUM_SECONDS_BETWEEN_REQUESTS=5
+    DOMAIN_DEFAULT_MINIMUM_SECONDS_BETWEEN_REQUESTS=0.5
 
     def is_running(self):
         return self.running
@@ -592,11 +592,11 @@ class Crawler_worker:
         '''
         #USE QUEUE!!!
         cached_domain_robots = Crawler_worker.cache_robots[domain]
-        domain_crawl_delay = cached_domain_robots.request_rate[1] if cached_domain_robots.request_rate is not None \
+        domain_crawl_delay = cached_domain_robots.crawl_delay('*') if cached_domain_robots.crawl_delay('*') is not None \
                               else Crawler_worker.DOMAIN_DEFAULT_MINIMUM_SECONDS_BETWEEN_REQUESTS
         Crawler_worker.domain_last_accessed_lock.acquire()
         try:
-            if domain_url in Crawler_worker.domain_last_accessed:
+            if domain in Crawler_worker.domain_last_accessed:
                 if time.time() < Crawler_worker.domain_last_accessed[domain] + domain_crawl_delay:
                     # just sleep and wait-out the remaining time?
                     Crawler_worker.domain_last_accessed_lock.release()
@@ -611,6 +611,9 @@ class Crawler_worker:
     def dowload_binary(url):
         #dowload binary data (image or document)
         #Return tuple of form (http_status_code,content)
+        current_domain = urlparse(url).netloc
+        while Crawler_worker.domain_locked(current_domain):
+            pass
         response_code, binary_file = page_parser.fetch_file_content(url)
         return response_code, binary_file
 
@@ -658,6 +661,8 @@ class Crawler_worker:
             #print(self.id, "RENDERING AND DOWNLOADING WEBPAGE")
             ##### RENDER/DOWNLOAD WEBPAGE #####
             useragent="*"
+            while Crawler_worker.domain_locked(current_domain):
+                pass
             req_response_code, content = self.get_page(url=current_url,useragent=useragent)
 
             if content is None:
@@ -673,6 +678,8 @@ class Crawler_worker:
 
             #print(self.id, "PARSING WEBPAGE")
             ##### PARSE WEBPAGE AND EXTRACT IMAGES,DOCUMENTS AND HREFS #####
+            while Crawler_worker.domain_locked(current_domain):
+                pass
             images_tmp, documents_tmp, hrefs_tmp = self.parse_page(current_url, content)
             images += images_tmp
             documents += documents_tmp
@@ -704,8 +711,8 @@ class Crawler_worker:
             hrefs = [href_url for href_url in hrefs if rp.can_fetch(useragent, href_url)]
 
             ##### COLLECT BINARIES ONLY FROM SITES LISTED IN THE INITIAL SEED LIST #####
-            images_content={image_url: Crawler_worker.dowload_binary(image_url) for image_url in images if image_url in self.frontier_seed_urls}
-            documents_content = {document_url: Crawler_worker.dowload_binary(document_url) for document_url in documents if document_url in self.frontier_seed_urls}
+            images_content={image_url: Crawler_worker.dowload_binary(image_url) for image_url in images if urlparse(image_url).netloc in self.frontier_seed_sites}
+            documents_content = {document_url: Crawler_worker.dowload_binary(document_url) for document_url in documents if urlparse(document_url).netloc in self.frontier_seed_sites}
 
             ##### GET DOCUMENT DATA_TYPE #####
             documents_data_type={document_url: self.get_data_type(document_url) for document_url in documents}
@@ -725,6 +732,8 @@ class Crawler_worker:
                   'documents_content' : documents_content,
                   'documents_data_type' : documents_data_type
             }
+            while Crawler_worker.domain_locked(current_domain):
+                pass
             self.write_to_DB(data=data)
             self.processing_done_URL(current_url)
 
@@ -746,7 +755,7 @@ class Crawler_worker:
         self.db_conn=db_conn
         self.cursor=db_conn.cursor()
         self.id=id
-        self.frontier_seed_urls=frontier_seed_urls
+        self.frontier_seed_sites=[urlparse(seed_url).netloc for seed_url in frontier_seed_urls]
         self.cache_robots_lock_timestamp=None
         #self.domain_last_accessed_lock_timestamp=None
 
