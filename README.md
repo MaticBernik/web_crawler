@@ -1,5 +1,5 @@
 # Standalone hyper-threaded multiworker web crawler
-### adapted for use on .gov.si
+#### Adapted for the use on .gov.si domain
 
 A web crawler, enabled to extract any documents, images and links from a gov.si websites (or any other given websites). It uses selenium chrome based headless browser, which makes it javascript friendly.
 
