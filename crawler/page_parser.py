@@ -2,7 +2,7 @@ from bs4 import BeautifulSoup
 import requests
 import time
 requests.packages.urllib3.disable_warnings()
-# import page_fetcher
+import page_fetcher
 import re
 from url_normalize import url_normalize
 from urllib.parse import urljoin
@@ -19,12 +19,15 @@ def validate_or_join_url(page_url, link_url):
 
 def fetch_file_content(file_url):
     """ If successful returns a file of type bytes."""
-    r = requests.get(file_url)
+    try:
+        r = requests.get(file_url)
 
-    if r.status_code == 200:
-        return r.content
-    else:
-        return None
+        if r.status_code == 200:
+            return r.status_code, r.content
+        else:
+            return r.status_code, None
+    except:
+        return 404, None
 
 def print_page_links(image_urls, file_urls, link_urls):
     print("IMAGES:")
@@ -41,8 +44,6 @@ def print_page_links(image_urls, file_urls, link_urls):
     
 def parse_page_html(page_url, page_html):
 
-    
-    
     soup = BeautifulSoup(page_html, "lxml")
 
     try:
@@ -90,9 +91,8 @@ def main():
     # image_site = "https://www.w3schools.com/jsref/tryit.asp?filename=tryjsref_onclick"
     image_site = "http://www.e-prostor.gov.si/"
     resp_status, image_html = page_fetcher.fetch_page(image_site)
-    href_links, images, documents = parse_page_html(image_site, image_html)
+    images, documents, link_hrefs = parse_page_html(image_site, image_html)
     print("complete")
-
 
 if __name__ == "__main__":
     main()
