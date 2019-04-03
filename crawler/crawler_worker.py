@@ -10,7 +10,7 @@ import page_fetcher
 import sitemap_parser
 import page_parser
 import ssl
-
+import hashlib
 
 
 class Crawler_worker:
@@ -221,9 +221,11 @@ class Crawler_worker:
         return response_code, page_html
 
     def get_hash(self,content):
-        #hash content LSH
-        pass
-
+        try:
+            sha = hashlib.sha1(content.encode('utf-8'))
+            return sha.hexdigest()
+        except:
+            return None
 
     def get_content_type(content):
         #check if img/document/html...
@@ -269,7 +271,7 @@ class Crawler_worker:
                            'site_id = %s '+\
                            ',accessed_time = %s '+ \
                            ',page_type_code = %s '+ \
-                           ('minhash = %s ' if data['minhash'] is not None else '')+\
+                           (',minhash = %s ' if data['minhash'] is not None else '')+\
                            (',html_content = %s ' if page_type_code!='DUPLICATE' and data['html_content'] is not None else '')+\
                            (',http_status_code = %s ' if data['http_status_code'] is not None else '')+\
                            'WHERE id = %s;'
@@ -454,7 +456,7 @@ class Crawler_worker:
                                         WHERE minhash = %s LIMIT 1);"""
         '''
         select_statement = """SELECT id FROM crawldb.page 
-                                                WHERE minhash = %s LIMIT 1);"""
+                                                WHERE minhash = %s LIMIT 1;"""
         select_values=(str(page_hash),)
         cursor.execute(select_statement,select_values)
         already_exists = cursor.fetchone()[0]
@@ -625,14 +627,14 @@ class Crawler_worker:
             if self.early_stop_condition():
                 print(self.id+'EARLY-STOP CONDITION REACHED ...exiting!')
                 break
-            ##### TRY TO GET NEXT JOB/URL (exit after 3 retries) #####
-            for retry in range(3):
+            ##### TRY TO GET NEXT JOB/URL (exit after 5 retries) #####
+            for retry in range(5):
                 current_url = self.get_next_URL()
                 if current_url is not None:
                     break
                 else:
-                    print(self.id+' without URL job...retrying in 1s...')
-                    time.sleep(1)
+                    print(self.id+' without URL job...retrying in 5s...')
+                    time.sleep(5)
             else:
                 break
 

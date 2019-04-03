@@ -2,7 +2,7 @@ from datasketch import MinHash, LeanMinHash
 #datasketch packages @ https://github.com/ekzhu/datasketch
 import page_fetcher
 import time
-
+import hashlib
 
 
 def main():
@@ -34,25 +34,24 @@ def main():
     actual_jaccard = float(len(s1.intersection(s2)))/float(len(s1.union(s2)))
     print("Actual Jaccard for page_1 and page_2 is", actual_jaccard)
 
-    print(m1_128)
-    print(type(m1_128))
-
-    lean_m1 = LeanMinHash(m1)
-    print("STRING:L ", str(lean_m1))
-    print("INT: ", int(lean_m1))
-    print("FLOAT: ", float(lean_m1))
-    lean_m2 = LeanMinHash(m2)
-
-    buf = bytearray(lean_m1.bytesize())
-    ser_lm1 = lean_m1.serialize(buf)
-    print(ser_lm1)
 
 
-    buf = bytearray(lean_m2.bytesize())
-    ser_lm2 = lean_m2.serialize(buf)
-    print(ser_lm2)
 
-    print(lean_m1.__hash__)
+    sha1 = hashlib.sha1(page_1.encode('utf-8'))
+    print(sha1.hexdigest())
+
+
+    sha2 = hashlib.sha1(page_2.encode('utf-8'))
+    print(sha2.hexdigest())
+
+    sha1 = hashlib.sha1("That's what she said.".encode('utf-8'))
+    print(sha1.hexdigest())
+    sha2 = hashlib.sha1("~Michael Scott".encode('utf-8'))
+    print(sha2.hexdigest())
+    sha3 = hashlib.sha1("That's what she said.".encode('utf-8'))
+    print(sha3.hexdigest())
+
+
 
 if __name__ == "__main__":
     main()
