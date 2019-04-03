@@ -11,6 +11,8 @@ import sitemap_parser
 import page_parser
 import ssl
 
+
+
 class Crawler_worker:
     #Lock every entry separately?
     cache_robots={}
@@ -128,8 +130,6 @@ class Crawler_worker:
         current_depth = cursor.fetchone()[0]
         return current_depth
 
-
-
     def get_robots(self,url):
         #extract domain base url
         #check for existance of robots.txt
@@ -144,15 +144,20 @@ class Crawler_worker:
         domain_url = '{uri.scheme}://{uri.netloc}/'.format(uri=parsed_uri)
         ##### restore from cache if stored else create #####
         Crawler_worker.cache_robots_lock.acquire()
-        if domain in Crawler_worker.cache_robots:
-            rp=Crawler_worker.cache_robots[domain]
-        else:
-            robots_url = domain_url + 'robots.txt'
-            rp = robotparser.RobotFileParser()
-            rp.set_url(robots_url)
-            rp.read()
-            Crawler_worker.cache_robots[domain]=rp
+        self.cache_robots_lock_timestamp=time.time()
+        try:
+            if domain in Crawler_worker.cache_robots:
+                rp=Crawler_worker.cache_robots[domain]
+            else:
+                robots_url = domain_url + 'robots.txt'
+                rp = robotparser.RobotFileParser()
+                rp.set_url(robots_url)
+                rp.read()
+                Crawler_worker.cache_robots[domain]=rp
+        except Exception as e:
+            print(self.id,'get_robots() EXCEPTION!!!!!',e)
         Crawler_worker.cache_robots_lock.release()
+        self.cache_robots_lock_timestamp = None
         return rp
 
     @staticmethod
@@ -555,12 +560,15 @@ class Crawler_worker:
         domain_crawl_delay = cached_domain_robots.request_rate[1] if cached_domain_robots.request_rate is not None \
                               else Crawler_worker.DOMAIN_DEFAULT_MINIMUM_SECONDS_BETWEEN_REQUESTS
         Crawler_worker.domain_last_accessed_lock.acquire()
-        if domain_url in Crawler_worker.domain_last_accessed:
-            if time.time() < Crawler_worker.domain_last_accessed[domain] + domain_crawl_delay:
-                # just sleep and wait-out the remaining time?
-                Crawler_worker.domain_last_accessed_lock.release()
-                return True
-        Crawler_worker.domain_last_accessed[domain] = time.time()
+        try:
+            if domain_url in Crawler_worker.domain_last_accessed:
+                if time.time() < Crawler_worker.domain_last_accessed[domain] + domain_crawl_delay:
+                    # just sleep and wait-out the remaining time?
+                    Crawler_worker.domain_last_accessed_lock.release()
+                    return True
+            Crawler_worker.domain_last_accessed[domain] = time.time()
+        except Exception as e:
+            print(self.id,'domain_locked() EXCEPTION!!!',e)
         Crawler_worker.domain_last_accessed_lock.release()
         return False
 
@@ -574,6 +582,7 @@ class Crawler_worker:
 
     def run_logic(self):
         while True:
+            #print(self.id,"GETTING NEW JOB")
             images = []
             documents = []
             hrefs = []
@@ -591,41 +600,50 @@ class Crawler_worker:
                     time.sleep(1)
             else:
                 break
+
+            #print(self.id, "CHECKING IF NEW URL ALREADY PROCESSED")
             ##### CHECK IF NEW JOB/URL WAS ALREADY PROCESSED (if it was, mark job as done) #####
             if self.url_already_processed(current_url):
                 self.processing_done_URL(current_url)
                 continue
 
+            #print(self.id, "POCESSING ROBOTS FILE")
             ##### PROCESS ROBOTS FILE (returns robotparser object) #####
             rp=self.get_robots(current_url)
 
+            #print(self.id, "GETTING CURRENT DEPTH AND DOMAIN")
             ##### GET CURRENT DEPTH AND DOMAIN #####
             current_depth = self.get_current_depth(current_url)
             current_domain = urlparse(current_url).netloc
 
+            #print(self.id, "HANDLING ROBOTS AND SITEMAP DATA FOR DOMAIN")
             ##### HANDLE ROBOTS AND SITEMAP DATA #####
             self.handle_robots_sitemaps(rp,current_depth)
 
+            #print(self.id, "RENDERING AND DOWNLOADING WEBPAGE")
             ##### RENDER/DOWNLOAD WEBPAGE #####
             useragent="*"
             req_response_code, content = self.get_page(url=current_url,useragent=useragent)
 
             if content is None:
+                #print(self.id, "DOWNLOADED CONTENT IS NONE... JOB DONE:D")
                 self.processing_done_URL(current_url)
                 continue
 
+            #print(self.id, "HASHING AND CHECKING FOR DUPLICATE")
             ##### CHECK IF PAGE CONTENT IMPLIES ALREADY PROCESSED PAGE (if it was, mark job as done) #####
             ## TODO : COMPARE PAGE BY CONTENT
             page_hash = self.get_hash(content)
             is_duplicate = self.duplicate_page(page_hash)
 
-
+            #print(self.id, "PARSING WEBPAGE")
             ##### PARSE WEBPAGE AND EXTRACT IMAGES,DOCUMENTS AND HREFS #####
             images_tmp, documents_tmp, hrefs_tmp = self.parse_page(current_url, content)
             images += images_tmp
             documents += documents_tmp
             hrefs += hrefs_tmp
 
+            #print(self.id, "NORMALIZING EXTRACTED URLS")
             ##### NORMALIZE URLS #####
             images = [Crawler_worker.normalize_url(image_url) for image_url in images]
             documents = [Crawler_worker.normalize_url(document_url) for document_url in documents]
@@ -694,6 +712,8 @@ class Crawler_worker:
         self.cursor=db_conn.cursor()
         self.id=id
         self.frontier_seed_urls=frontier_seed_urls
+        self.cache_robots_lock_timestamp=None
+        #self.domain_last_accessed_lock_timestamp=None
 
 
 

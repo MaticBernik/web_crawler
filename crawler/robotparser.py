@@ -14,6 +14,7 @@ import collections
 import urllib.parse
 import urllib.request
 import ssl
+import time
 __all__ = ["RobotFileParser"]
 
 RequestRate = collections.namedtuple("RequestRate", "requests seconds")
@@ -64,7 +65,10 @@ class RobotFileParser:
             ctx = ssl.create_default_context()
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
-            f = urllib.request.urlopen(self.url, context=ctx)
+            start=time.time()
+            f = urllib.request.urlopen(self.url, context=ctx, timeout=10)
+            if start+10<=time.time():
+                print("*****************ROBOTS f = urllib.request.urlopen(self.url, context=ctx, timeout=10)  TIMED OUT!!!")
         except urllib.error.HTTPError as err:
             self.robots_exists=False
             if err.code in (401, 403):

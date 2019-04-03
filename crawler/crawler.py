@@ -15,8 +15,10 @@ DB_PASSWORD=db_connection_info['password']
 # FRONTIER_SEED_URLS=['http://evem.gov.si','http://e-uprava.gov.si','http://podatki.gov.si','http://e-prostor.gov.si']
 # for dump
 FRONTIER_SEED_URLS=['http://evem.gov.si', 'http://e-prostor.gov.si']
+MAX_CACHE_LOCK_SECONDS=10
 FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS=60
 NR_WORKERS=8
+
 
 def unblock_frontier_waiting(conn):
     '''
@@ -73,26 +75,38 @@ if pages_nr==0 and frontier_pages_nr==0:
 #INITIALIZE AND RUN WORKERS
 print('***Running workers in seperate threads...')
 workers=[Crawler_worker(db_conn=conn,id='WORKER_'+str(i),frontier_seed_urls=FRONTIER_SEED_URLS) for i in range(NR_WORKERS)]
-for worker in workers:
-    t = threading.Thread(target=worker.run)
-    t.start()
+workers_threads=[threading.Thread(target=worker.run) for worker in workers]
+for worker_thread in workers_threads:
+    worker_thread.start()
 print('...done')
 
 #MAIN LOOP
 print('***Entering main loop...')
 while True:
-    #UNBLOCK TIMED-OUT URLs IN FRONTIER
-    #later replace with postgres cron job
-    update_statement="UPDATE crawldb.frontier SET processing_start_time=NULL, status='waiting' WHERE status='processing' AND processing_start_time < NOW() - INTERVAL '"+str(FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS)+" seconds';"
-    cursor.execute(update_statement)
-    conn.commit()
-
-    nr_workers_running = sum([worker.is_running() for worker in workers])
-    #print("***NR OF RUNNING WORKERS:",nr_workers_running)
-    #EXIT WHEN ALL WORKERS ARE DONE
-    if nr_workers_running==0:
-        break
-    time.sleep(FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS)
+    try:
+        #UNBLOCK TIMED-OUT URLs IN FRONTIER
+        #later replace with postgres cron job
+        update_statement="UPDATE crawldb.frontier SET processing_start_time=NULL, status='waiting' WHERE status='processing' AND processing_start_time < NOW() - INTERVAL '"+str(FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS)+" seconds';"
+        cursor.execute(update_statement)
+        conn.commit()
+        '''
+        #CHECK IF ANY WORKER LOCKED CACHE FOR TOO LONG --> RESTART WORKER AND RELEASE LOCK
+        for idx,worker in enumerate(workers):
+            if worker.cache_robots_lock_timestamp is not None and worker.cache_robots_lock_timestamp+MAX_CACHE_LOCK_SECONDS<time.time():
+                #worker locked thread for too long
+                print("***WORKER ",worker.id,"LOCKED CACHE FOR TOO LONG..")
+                worker_id=worker.id
+                workers_threads[idx].exit()
+                #Crawler_worker.cache_robots_lock.release()
+        '''
+        #EXIT WHEN ALL WORKERS ARE DONE
+        nr_workers_running = sum([worker.is_running() for worker in workers])
+        print("***Currently running ",nr_workers_running,"workers")
+        if nr_workers_running==0:
+            break
+        time.sleep(MAX_CACHE_LOCK_SECONDS if MAX_CACHE_LOCK_SECONDS<FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS else FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS)
+    except Exception as e:
+        print('***Exception in main loop!',e)
 cursor.close()
 conn.close()
 print('***...DONE!')
