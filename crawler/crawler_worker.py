@@ -217,25 +217,33 @@ class Crawler_worker:
         select_values = (data['domain'],)
         cursor.execute(select_statement, select_values)
         current_site_id = cursor.fetchone()[0]
-
+        #fill out current page data record in DB
+        page_type_code = 'DUPLICATE' if data['is_duplicate'] else 'HTML'
         update_statement = 'UPDATE crawldb.page SET '+\
                            'site_id = %s '+\
                            ',accessed_time = %s '+ \
                            ',page_type_code = %s '+ \
-                           (',html_content = %s ' if data['html_content'] is not None else '')+\
+                           ('minhash = %s ' if data['minhash'] is not None else '')+\
+                           (',html_content = %s ' if page_type_code!='DUPLICATE' and data['html_content'] is not None else '')+\
                            (',http_status_code = %s ' if data['http_status_code'] is not None else '')+\
                            'WHERE id = %s;'
-        page_type_code = 'DUPLICATE' if data['is_duplicate'] else 'HTML'
         update_values = [current_site_id,datetime.now(),page_type_code]
-        if data['html_content'] is not None:
+        if data['minhash'] is not None:
+            update_values.append(data['minhash'])
+        if page_type_code!='DUPLICATE' and data['html_content'] is not None:
             update_values.append(data['html_content'])
         if data['http_status_code'] is not None:
             update_values.append(data['http_status_code'])
         update_values.append(current_page_id)
         update_values=tuple(update_values)
         cursor.execute(update_statement, update_values)
-
+        #insert href urls to frontier and create corresponding page entries
         hrefs_pages_id=self.insert_urls_into_frontier(data['hrefs_urls'],data['depth']+1)
+        #insert into link table
+        if page_type_code=='DUPLICATE':
+            duplicate_page_id=self.duplicate_page(data['minhash'])
+            insert_statement='INSERT INTO crawldb.link(from_page,to_page) VALUES (%s,%s);'
+            insert_values=(duplicate_page_id,current_page_id)
         if hrefs_pages_id is not None and len(hrefs_pages_id) > 0:
             hrefs_pages_id=[x[0] for x in hrefs_pages_id]
             insert_statement = 'INSERT INTO crawldb.link(from_page,to_page) VALUES '+','.join(['(%s,%s)' for i in range(len(hrefs_pages_id))])+';'
@@ -245,7 +253,18 @@ class Crawler_worker:
                 insert_values+=[current_page_id,id]
             insert_values=tuple(insert_values)
             cursor.execute(insert_statement,insert_values)
-
+        #insert pages for images
+        #            images_content={image_url: dowload_binary(image_url) for image_url in images if image_url in self.frontier_seed_urls}
+        '''
+        insert_statement = """WITH urls(u) 
+                              AS (VALUES """+','.join(['(%s)' for i in range(len(url_list))])+""")
+                              INSERT INTO crawldb.page(url)
+                              (SELECT u FROM urls  
+                              WHERE u NOT IN (
+                                SELECT url from crawldb.page) FOR UPDATE SKIP LOCKED)
+                              RETURNING id;
+                           """
+        '''
 
 
 
@@ -254,9 +273,13 @@ class Crawler_worker:
             return False
         #check if page with specified page_hash is already in DB
         cursor=self.cursor
+        '''
         select_statement = """SELECT EXISTS (
                                         SELECT 1 FROM crawldb.page 
                                         WHERE minhash = %s LIMIT 1);"""
+        '''
+        select_statement = """SELECT id FROM crawldb.page 
+                                                WHERE minhash = %s LIMIT 1);"""
         select_values=(str(page_hash),)
         cursor.execute(select_statement,select_values)
         already_exists = cursor.fetchone()[0]
@@ -404,6 +427,11 @@ class Crawler_worker:
         Crawler_worker.domain_last_accessed_lock.release()
         return False
 
+    @staticmethod
+    def dowload_binary(url):
+        #dowload binary data (image or document)
+        #Return tuple of form (http_status_code,content)
+        return ()
 
 
 
@@ -466,6 +494,11 @@ class Crawler_worker:
             documents = [Crawler_worker.normalize_url(document_url) for document_url in documents]
             hrefs = [Crawler_worker.normalize_url(href_url) for href_url in hrefs]
 
+            ##### MAKE SURE URLS ARE UNIQUE #####
+            images=set(images)
+            documents=set(documents)
+            hrefs=set(hrefs)
+
             ##### FILTER URLS ALREADY PROCESSED #####
             images = [Crawler_worker.normalize_url(image_url) for image_url in images if not self.url_already_processed(image_url)]
             documents = [Crawler_worker.normalize_url(document_url) for document_url in documents if not self.url_already_processed(document_url)]
@@ -481,8 +514,8 @@ class Crawler_worker:
             hrefs = [href_url for href_url in hrefs if rp.can_fetch(useragent, href_url)]
 
             ##### COLLECT BINARIES ONLY FROM SITES LISTED IN THE INITIAL SEED LIST #####
-            images_content={image_url: dowload_binary(image_url) for image_url in images if image_url in self.frontier_seed_urls}
-            documents_content = {document_url: dowload_binary(document_url) for document_url in documents if document_url in self.frontier_seed_urls}
+            images_content={image_url: Crawler_worker.dowload_binary(image_url) for image_url in images if image_url in self.frontier_seed_urls}
+            documents_content = {document_url: Crawler_worker.dowload_binary(document_url) for document_url in documents if document_url in self.frontier_seed_urls}
 
             ##### GET DOCUMENT DATA_TYPE #####
             documents_data_type={document_url: self.get_data_type(document_url) for document_url in documents}
