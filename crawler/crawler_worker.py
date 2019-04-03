@@ -259,10 +259,10 @@ class Crawler_worker:
                 insert_values+=[current_page_id,id]
             insert_values=tuple(insert_values)
             cursor.execute(insert_statement,insert_values)
-
+        ##### PROCESS IMAGES #####
+        # filter out image urls longer than 3000 char
+        data['image_urls'] = [url for url in data['image_urls'] if len(url) <= 3000]
         if len(data['image_urls'])>0:
-            #filter out image urls longer than 3000 char
-            data['image_urls']=[url for url in data['image_urls'] if len(url)<=3000]
             # insert pages for images
             insert_statement = """WITH urls(u) 
                                   AS (VALUES """+','.join(['(%s)' for i in range(len(data['image_urls']))])+""")
@@ -314,7 +314,7 @@ class Crawler_worker:
             # insert into image table
             '''
             data['images_content'][data['image_urls'][0]] = (
-            100, 'JPEG binary image data example blablbalbal')  # DELETEEEE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            100, 'JPEG binary image data example blablbalbal')  # FOR TESTING ..DELETEEEE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             '''
             for image_url, (http_code, image_content) in data['images_content'].items():
                 image_page_id = [id for id, url in image_id_url.items() if url == image_url]
@@ -337,11 +337,71 @@ class Crawler_worker:
                 insert_statement='INSERT INTO crawldb.image(page_id,filename,content_type,data,accessed_time) VALUES(%s,%s,%s,%s,%s);'
                 insert_values=(image_page_id,file_name,content_type,image_content,datetime.now())
                 cursor.execute(insert_statement,insert_values)
-
-
-
-
-
+        ##### PROCESS DOCUMENTS #####
+            # filter out document urls longer than 3000 char
+            data['document_urls'] = [url for url in data['document_urls'] if len(url) <= 3000]
+            if len(data['document_urls']) >0:
+                # insert pages for documents
+                insert_statement = """WITH urls(u) 
+                                                  AS (VALUES """ + ','.join(
+                    ['(%s)' for i in range(len(data['document_urls']))]) + """)
+                                                  INSERT INTO crawldb.page(url)
+                                                  (SELECT u FROM urls  
+                                                  WHERE u NOT IN (
+                                                    SELECT url from crawldb.page) FOR UPDATE SKIP LOCKED)
+                                                  RETURNING id,url;
+                                               """
+                insert_values = tuple(data['document_urls'])
+                cursor.execute(insert_statement, insert_values)
+                document_pages_ids = cursor.fetchall()
+                document_id_url = {}
+                if len(document_pages_ids) > 0:
+                    document_id_url = {x[0]: x[1] for x in document_pages_ids}
+                # insert sites for documents
+                document_id_domain = {id: urlparse(url).netloc for id, url in document_id_url.items()}
+                domain_site_id = {}
+                for document_domain in set(document_id_domain.values()):
+                    if not document_domain:
+                        continue
+                    rp = self.get_robots('http://' + document_domain)
+                    site_id = self.handle_robots_sitemaps(rp, data['depth'] + 1)
+                    if site_id is None:
+                        select_statement = 'SELECT id FROM crawldb.site WHERE domain=%s;'
+                        select_values = (document_domain,)
+                        cursor.execute(select_statement, select_values)
+                        site_id = cursor.fetchone()
+                    site_id = site_id[0]
+                    domain_site_id[document_domain] = site_id
+                # fill out page data for documents
+                for document_page_id, document_page_url in document_pages_ids:
+                    if not document_id_domain[document_page_id]:
+                        continue
+                    update_statement = 'UPDATE crawldb.page SET ' + \
+                                       'site_id = %s ' + \
+                                       ',accessed_time = %s ' + \
+                                       ',page_type_code = %s ' + \
+                                       (',http_status_code = %s ' \
+                                            if document_id_url[document_page_id] in data['documents_content'] \
+                                               and data['documents_content'][document_id_url[document_page_id]][
+                                                   0] is not None else '') + \
+                                       'WHERE id = %s;'
+                    update_values = [domain_site_id[document_id_domain[document_page_id]], datetime.now(), 'BINARY']
+                    if document_id_url[document_page_id] in data['documents_content'] and \
+                            data['documents_content'][document_id_url[document_page_id]][0] is not None:
+                        update_values.append(data['documents_content'][document_id_url[document_page_id]][0])
+                    update_values.append(document_page_id)
+                    update_values = tuple(update_values)
+                    cursor.execute(update_statement, update_values)
+                for document_url, (http_code, document_content) in data['documents_content'].items():
+                    document_page_id = [id for id, url in document_id_url.items() if url == document_url]
+                    if len(document_page_id) == 0:
+                        continue
+                    else:
+                        document_page_id = document_page_id[0]
+                    document_data_type=self.get_data_type(document_url)
+                    insert_statement="""INSERT INTO crawldb.page_data(page_id,data_type_code,data) VALUES (%s,%s,%s);"""
+                    insert_values=(document_page_id,document_data_type,document_content)
+                    cursor.execute(insert_statement,insert_values)
 
     def duplicate_page(self,page_hash):
         if page_hash is None:
