@@ -474,9 +474,16 @@ class Crawler_worker:
         return images,documents,hrefs
 
     def early_stop_condition(self):
+        '''
         select_statement = """SELECT count(*) 
                               FROM crawldb.page
-                              WHERE page_type_code='HTML';"""
+                              WHERE page_type_code='HTML and ';"""
+        '''
+        select_statement = """SELECT count(*) 
+                              FROM crawldb.site INNER JOIN 
+                              (SELECT id,site_id FROM crawldb.page WHERE site_id IS NOT NULL AND page_type_code='HTML') as pages_with_site
+                              ON crawldb.site.id = pages_with_site.site_id
+                              WHERE domain LIKE 'gov.si';"""
         self.cursor.execute(select_statement)
         html_page_count=self.cursor.fetchone()
         return html_page_count[0] > 100000
