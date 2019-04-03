@@ -253,18 +253,60 @@ class Crawler_worker:
                 insert_values+=[current_page_id,id]
             insert_values=tuple(insert_values)
             cursor.execute(insert_statement,insert_values)
-        #insert pages for images
-        #            images_content={image_url: dowload_binary(image_url) for image_url in images if image_url in self.frontier_seed_urls}
-        '''
-        insert_statement = """WITH urls(u) 
-                              AS (VALUES """+','.join(['(%s)' for i in range(len(url_list))])+""")
-                              INSERT INTO crawldb.page(url)
-                              (SELECT u FROM urls  
-                              WHERE u NOT IN (
-                                SELECT url from crawldb.page) FOR UPDATE SKIP LOCKED)
-                              RETURNING id;
-                           """
-        '''
+
+        if len(data['image_urls'])>0:
+            # insert pages for images
+            insert_statement = """WITH urls(u) 
+                                  AS (VALUES """+','.join(['(%s)' for i in range(len(data['image_urls']))])+""")
+                                  INSERT INTO crawldb.page(url)
+                                  (SELECT u FROM urls  
+                                  WHERE u NOT IN (
+                                    SELECT url from crawldb.page) FOR UPDATE SKIP LOCKED)
+                                  RETURNING id,url;
+                               """
+            insert_values = tuple(data['image_urls'])
+            cursor.execute(insert_statement,insert_values)
+            image_pages_ids=cursor.fetchall()
+            image_id_url={}
+            if len(image_pages_ids)>0:
+                image_id_url={x[0]:x[1] for x in image_pages_ids}
+            #insert sites for images
+            image_id_domain={id:urlparse(url).netloc for id,url in image_id_url.items()}
+            domain_site_id={}
+            for image_domain in  set(image_id_domain.values()):
+                if not image_domain:
+                    continue
+                rp=self.get_robots('http://'+image_domain)
+                site_id=self.handle_robots_sitemaps(rp,data['depth']+1)
+                if site_id is None:
+                    select_statement='SELECT id FROM crawldb.site WHERE domain=%s;'
+                    select_values=(image_domain,)
+                    cursor.execute(select_statement,select_values)
+                    site_id=cursor.fetchone()
+                site_id=site_id[0]
+                domain_site_id[image_domain]=site_id
+
+
+
+            for image_page_id,image_page_url in image_pages_ids:
+                if not image_id_domain[image_page_id]:
+                    continue
+                update_statement = 'UPDATE crawldb.page SET ' + \
+                                   'site_id = %s ' + \
+                                   ',accessed_time = %s ' + \
+                                   ',page_type_code = %s ' + \
+                                   (',http_status_code = %s ' \
+                                        if image_id_url[image_page_id] in data['images_content'] \
+                                           and data['images_content'][image_id_url[image_page_id]][0] is not None else '') + \
+                                   'WHERE id = %s;'
+                update_values = [domain_site_id[image_id_domain[image_page_id]], datetime.now(), 'BINARY']
+                if image_id_url[image_page_id] in data['images_content'] and data['images_content'][image_id_url[image_page_id]][0] is not None:
+                    update_values.append(data['images_content'][image_id_url[image_page_id]][0])
+                update_values.append(image_page_id)
+                update_values = tuple(update_values)
+                print('UPDATE VALUES',update_values)
+                cursor.execute(update_statement, update_values)
+
 
 
 
@@ -379,7 +421,7 @@ class Crawler_worker:
                            + """WHERE NOT EXISTS (
                                         SELECT 1 FROM crawldb.site
                                         WHERE domain = %s
-                                        LIMIT 1);"""
+                                        LIMIT 1) RETURNING id;"""
         insert_values = [domain]
         if i_r:
             insert_values.append(robots_content)
@@ -388,9 +430,11 @@ class Crawler_worker:
         insert_values.append(domain)
         insert_values = tuple(insert_values)
         cursor.execute(insert_statement, insert_values)
+        site_id=cursor.fetchone()
         ##### add new urls from sitemaps to  frontier #####
         self.insert_urls_into_frontier(sitemaps_hrefs,current_depth+1)
         conn.commit()
+        return site_id
 
     def get_data_type(self,url):
         #return data type of binary from url
