@@ -13,7 +13,7 @@
 import collections
 import urllib.parse
 import urllib.request
-
+import ssl
 __all__ = ["RobotFileParser"]
 
 RequestRate = collections.namedtuple("RequestRate", "requests seconds")
@@ -61,7 +61,10 @@ class RobotFileParser:
     def read(self):
         """Reads the robots.txt URL and feeds it to the parser."""
         try:
-            f = urllib.request.urlopen(self.url)
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            f = urllib.request.urlopen(self.url, context=ctx)
         except urllib.error.HTTPError as err:
             self.robots_exists=False
             if err.code in (401, 403):

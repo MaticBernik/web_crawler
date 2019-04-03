@@ -20,7 +20,7 @@ def validate_or_join_url(page_url, link_url):
 def fetch_file_content(file_url):
     """ If successful returns a file of type bytes."""
     try:
-        r = requests.get(file_url)
+        r = requests.get(file_url, verfiy=False)
 
         if r.status_code == 200:
             return r.status_code, r.content

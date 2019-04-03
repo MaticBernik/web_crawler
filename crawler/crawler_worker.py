@@ -9,7 +9,7 @@ from datetime import datetime
 import page_fetcher
 import sitemap_parser
 import page_parser
-
+import ssl
 
 class Crawler_worker:
     #Lock every entry separately?
@@ -160,7 +160,10 @@ class Crawler_worker:
         """Reads the URL and feeds it to the parser."""
         """Copied and adapted from robotparser.py"""
         try:
-            f = urllib.request.urlopen(url)
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            f = urllib.request.urlopen(url, context=ctx)
         except urllib.error.HTTPError as err:
             if err.code in (401, 403):
                 #Forbidden,unauthorized
