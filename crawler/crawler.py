@@ -90,6 +90,15 @@ while True:
         update_statement="UPDATE crawldb.frontier SET processing_start_time=NULL, status='waiting' WHERE status='processing' AND processing_start_time < NOW() - INTERVAL '"+str(FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS)+" seconds';"
         cursor.execute(update_statement)
         conn.commit()
+        #PRINT OUT PROGRESS
+        select_statement = """SELECT count(*) 
+                                      FROM crawldb.site INNER JOIN 
+                                      (SELECT id,site_id FROM crawldb.page WHERE site_id IS NOT NULL AND page_type_code='HTML') as pages_with_site
+                                      ON crawldb.site.id = pages_with_site.site_id
+                                      WHERE domain LIKE '%gov.si%';"""
+        cursor.execute(select_statement)
+        html_page_count = cursor.fetchone()[0]
+        print("*****NUMBER OF PROCESSED .gov.si HTML PAGES:",html_page_count)
         '''
         #CHECK IF ANY WORKER LOCKED CACHE FOR TOO LONG --> RESTART WORKER AND RELEASE LOCK
         for idx,worker in enumerate(workers):
@@ -100,7 +109,7 @@ while True:
                 workers_threads[idx].exit()
                 #Crawler_worker.cache_robots_lock.release()
         '''
-        print('*******************CACHE LOCKS STATUS:\t\t',"cache_robots_lock: "+str(Crawler_worker.cache_robots_lock),"\t\tdomain_last_accessed_lock: "+str(Crawler_worker.domain_last_accessed_lock))
+        #print('*******************CACHE LOCKS STATUS:\t\t',"cache_robots_lock: "+str(Crawler_worker.cache_robots_lock),"\t\tdomain_last_accessed_lock: "+str(Crawler_worker.domain_last_accessed_lock))
         #EXIT WHEN ALL WORKERS ARE DONE
         nr_workers_running = sum([worker.is_running() for worker in workers])
         if nr_workers_running==0:
