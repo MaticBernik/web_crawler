@@ -17,7 +17,7 @@ DB_PASSWORD=db_connection_info['password']
 FRONTIER_SEED_URLS=['http://evem.gov.si', 'http://e-prostor.gov.si']
 MAX_CACHE_LOCK_SECONDS=10
 FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS=60
-NR_WORKERS=8
+NR_WORKERS=16
 
 
 def unblock_frontier_waiting(conn):

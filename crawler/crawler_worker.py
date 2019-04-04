@@ -19,7 +19,7 @@ class Crawler_worker:
     cache_robots_lock=Lock()
     domain_last_accessed={}
     domain_last_accessed_lock=Lock()
-    DOMAIN_DEFAULT_MINIMUM_SECONDS_BETWEEN_REQUESTS=0.5
+    DOMAIN_DEFAULT_MINIMUM_SECONDS_BETWEEN_REQUESTS=0
 
     def is_running(self):
         return self.running
@@ -548,6 +548,7 @@ class Crawler_worker:
 
     def insert_urls_into_frontier(self,url_list,depth):
         if len(url_list)>0:
+            conn=self.db_conn
             cursor=self.cursor
             url_list = list(set(url_list))
 
@@ -580,6 +581,7 @@ class Crawler_worker:
                 insert_statement = """INSERT INTO crawldb.frontier(id,depth,status) VALUES """ + ','.join(
                     ["("+str(id[0])+","+str(depth)+",'waiting')" for id in pages_ids]) + ';'
                 cursor.execute(insert_statement)
+                conn.commit()
             return pages_ids
 
 
