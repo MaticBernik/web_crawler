@@ -98,7 +98,7 @@ while True:
                                       WHERE domain LIKE '%gov.si%';"""
         cursor.execute(select_statement)
         html_page_count = cursor.fetchone()[0]
-        print("*****NUMBER OF PROCESSED .gov.si HTML PAGES:",html_page_count)
+        print("*******************************************NUMBER OF PROCESSED .gov.si HTML PAGES:",html_page_count)
         '''
         #CHECK IF ANY WORKER LOCKED CACHE FOR TOO LONG --> RESTART WORKER AND RELEASE LOCK
         for idx,worker in enumerate(workers):
@@ -112,8 +112,8 @@ while True:
         ##### CHECK IF WORKER LOCKED ON SAME STATUS FOR TOO LONG (more than 15s) #####
         current_time=time.time()
         for worker in workers:
-            if worker.status[1]+15<current_time:
-                print('****** ',worker.id,' on status :',worker.status[0],' for last',str(current_time-worker.status[1])+' seconds')
+            if worker.state[1]+1<current_time:
+                print('****** ',worker.id,' on status :',worker.state[0],' for last',str(current_time-worker.state[1])+' seconds')
         #print('*******************CACHE LOCKS STATUS:\t\t',"cache_robots_lock: "+str(Crawler_worker.cache_robots_lock),"\t\tdomain_last_accessed_lock: "+str(Crawler_worker.domain_last_accessed_lock))
         #EXIT WHEN ALL WORKERS ARE DONE
         nr_workers_running = sum([worker.is_running() for worker in workers])

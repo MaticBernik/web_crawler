@@ -634,6 +634,8 @@ class Crawler_worker:
         '''
         #USE QUEUE!!!
         cached_domain_robots = Crawler_worker.cache_robots[domain]
+        if cached_domain_robots.default_entry is None:
+            cached_domain_robots=None
         domain_crawl_delay = cached_domain_robots.crawl_delay('*') if cached_domain_robots is not None and cached_domain_robots.crawl_delay('*') is not None \
                               else Crawler_worker.DOMAIN_DEFAULT_MINIMUM_SECONDS_BETWEEN_REQUESTS
         Crawler_worker.domain_last_accessed_lock.acquire()
@@ -759,7 +761,7 @@ class Crawler_worker:
 
             #print('\t',self.id, "PARSING WEBPAGE")
             ##### PARSE WEBPAGE AND EXTRACT IMAGES,DOCUMENTS AND HREFS #####
-            self.state=('PARSING WEBOAGE',time.time())
+            self.state=('PARSING WEBPAGE',time.time())
             while Crawler_worker.domain_locked(current_domain):
                 pass
             images_tmp, documents_tmp, hrefs_tmp = self.parse_page(current_url, content)
