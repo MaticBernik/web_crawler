@@ -664,9 +664,11 @@ class Crawler_worker:
         return False
 
     @staticmethod
-    def dowload_binary(url):
+    def dowload_binary(url,actually_wanna_download_big_and_slow_files=False):
         #dowload binary data (image or document)
         #Return tuple of form (http_status_code,content)
+        if not actually_wanna_download_big_and_slow_files:
+            return 404, None
         current_domain = Crawler_worker.remove_www(urlparse(url).netloc)
         while Crawler_worker.domain_locked(current_domain):
             pass
