@@ -169,7 +169,7 @@ class RobotFileParser:
             return False
         if self.allow_all:
             return True
-
+        
         blacklist = ['sicas-x509si']
         for bl in blacklist:
             if bl in url:
