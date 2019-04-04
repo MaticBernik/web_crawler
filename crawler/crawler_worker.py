@@ -269,7 +269,7 @@ class Crawler_worker:
                            'site_id = %s '+\
                            ',accessed_time = %s '+ \
                            ',page_type_code = %s '+ \
-                           ('minhash = %s ' if data['minhash'] is not None else '')+\
+                           (',minhash = %s ' if data['minhash'] is not None else '')+\
                            (',html_content = %s ' if page_type_code!='DUPLICATE' and data['html_content'] is not None else '')+\
                            (',http_status_code = %s ' if data['http_status_code'] is not None else '')+\
                            'WHERE id = %s;'
