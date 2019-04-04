@@ -1,4 +1,5 @@
 # from urltools import normalize
+import psycopg2
 from url_normalize import url_normalize as normalize
 import urllib
 from urllib.parse import urlparse
@@ -164,8 +165,9 @@ class Crawler_worker:
             normalized_url = url
         select_statement = """SELECT depth 
                               FROM crawldb.frontier INNER JOIN crawldb.page ON crawldb.frontier.id = crawldb.page.id
-                              WHERE url='"""+normalized_url+"""';"""
-        cursor.execute(select_statement)
+                              WHERE url=%s;"""
+        select_values=(normalized_url,)
+        cursor.execute(select_statement,select_values)
         current_depth = cursor.fetchone()[0]
         return current_depth
 
@@ -219,8 +221,12 @@ class Crawler_worker:
                 #retry?
                 pass
         else:
-            raw = f.read()
-            raw = raw.decode("utf-8")
+            try:
+                raw = f.read()
+                raw = raw.decode("utf-8")
+            except UnicodeDecodeError as e:
+                raw = str(raw)
+
             return raw
 
     def get_page(self,url,useragent):
@@ -676,17 +682,24 @@ class Crawler_worker:
     def is_file_url(url):
         url_ending=url[-6:] if len(url)>=6 else url
         url_ending=url_ending.lower()
-        if '.htm' in url_ending or '.html' in url_ending:
+        if '.htm' in url_ending or '.html' in url_ending or '.xhtml' in url_ending or url_ending[-1]=='/':
             return False
-        file_suffixes=['.jspx','.zip','.mp4','.mp3','.jpg','.jpeg','.png','.vaw','.vma','.aspx', '.doc','.pdf','.docx','.ppt','.xlsx','.xls','.xsd','.jsp','.txt','.xml','.ppsm','.ppsx']
+        file_suffixes=['.evem','.edit','.swf','jspx','.zip','.mp4','.mp3','.jpg','.jpeg','.png','.vaw','.vma','.aspx',\
+                       '.doc','.pdf','.docx','.ppt','.xlsx','.xls','.xsd','.jsp','.txt','.xml','.ppsm','.ppsx','.aif'\
+                       '.cda','.mid','.midi','.mpa','.wav','.vma','.wpl','.7z','.arj','.deb','.pkg','.rar','.rpm','.tar.gz'\
+                       '.z','bin','.exe','.iso','.csv','.dat','.db','.dbf','.log','.mdf','.sql','.tar','.apk','.bat',\
+                       '.exe','.jar','.wsf','.py','.ttf','.otf','.fnt','.fon','.bmp','.ico','.ps','.svg','.tif','.tiff',\
+                       '.asp','.cer','.css','.cgi','.pl','.js','.jsp','.part','.php','.rss','.key','.odp','.pps','.ppt',\
+                       '.pps','.pptx','.ods','.xlr','.vb','.tmp','.ico','.msi','.dll','.cab','.bak','.avi','.3g2','.3gp',\
+                       '.h264','.mkv','.wmv','.vob','.rm','.flv','.rtf','.tex','.wps','.odt']
         for suffix in file_suffixes:
             if suffix in url_ending:
                 return True
-        '''    
+
         if '.' in url_ending:
             suffix=url_ending[url_ending.index('.'):]
             print("**** Suffix ",suffix,'found in HREF URL...... IS THAT OK??',url)
-        '''
+
         '''
         if not 'text' in Crawler_worker.guess_type_of(url):
             return True
@@ -858,7 +871,19 @@ class Crawler_worker:
         self.cursor.close()
         self.running = False
 
-    def __init__(self, db_conn, frontier_seed_urls, id='WORKER'):
+    def __init__(self, db_connection_info, frontier_seed_urls, id='WORKER'):
+        DB_HOST = db_connection_info['host']
+        DB_NAME = db_connection_info['name']
+        DB_USER = db_connection_info['username']
+        DB_PASSWORD = db_connection_info['password']
+        while True:
+            print('connectiong to db')
+            try:
+                db_conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASSWORD)
+            except:
+                continue
+            else:
+                break
         self.db_conn=db_conn
         self.cursor=db_conn.cursor()
         self.id=id

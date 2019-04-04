@@ -12,13 +12,13 @@ DB_USER=db_connection_info['username']
 DB_PASSWORD=db_connection_info['password']
 #FRONTIER_SEED_URLS=['http://evem.gov.si','http://e-uprava.gov.si','http://podatki.gov.si','http://e-prostor.gov.si','http://mizs.gov.si','http://mddsz.gov.si','http://mz.gov.si','http://uvps.gov.si','http://mf.gov.si']
 # for 100k
-# FRONTIER_SEED_URLS=['http://evem.gov.si','http://e-uprava.gov.si','http://podatki.gov.si','http://e-prostor.gov.si']
+# FRONTIER_SEED_URLS=['http://evem.gov.si/','http://e-uprava.gov.si/','http://podatki.gov.si/','http://e-prostor.gov.si/']
 # for dump
 FRONTIER_SEED_URLS=['http://evem.gov.si', 'http://e-prostor.gov.si']
+FRONTIER_SEED_URLS=[Crawler_worker.normalize_url(url) for url in FRONTIER_SEED_URLS]
 MAX_CACHE_LOCK_SECONDS=10
 FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS=60
 NR_WORKERS=8
-
 
 def unblock_frontier_waiting(conn):
     '''
@@ -75,7 +75,8 @@ if pages_nr==0 and frontier_pages_nr==0:
 #unblock_frontier_waiting(conn) #REMOVE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #INITIALIZE AND RUN WORKERS
 print('***Running workers in seperate threads...')
-workers=[Crawler_worker(db_conn=conn,id='WORKER_'+str(i),frontier_seed_urls=FRONTIER_SEED_URLS) for i in range(NR_WORKERS)]
+#workers=[Crawler_worker(db_conn=conn,id='WORKER_'+str(i),frontier_seed_urls=FRONTIER_SEED_URLS) for i in range(NR_WORKERS)]
+workers=[Crawler_worker(db_connection_info=db_connection_info,id='WORKER_'+str(i),frontier_seed_urls=FRONTIER_SEED_URLS) for i in range(NR_WORKERS)]
 workers_threads=[threading.Thread(target=worker.run) for worker in workers]
 for worker_thread in workers_threads:
     worker_thread.start()
