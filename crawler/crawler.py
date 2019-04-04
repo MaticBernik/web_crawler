@@ -14,7 +14,7 @@ DB_PASSWORD=db_connection_info['password']
 # for 100k
 # FRONTIER_SEED_URLS=['http://evem.gov.si/','http://e-uprava.gov.si/','http://podatki.gov.si/','http://e-prostor.gov.si/']
 # for dump
-FRONTIER_SEED_URLS=['http://evem.gov.si', 'http://e-prostor.gov.si']
+FRONTIER_SEED_URLS=['http://evem.gov.si/', 'http://e-prostor.gov.si/']
 FRONTIER_SEED_URLS=[Crawler_worker.normalize_url(url) for url in FRONTIER_SEED_URLS]
 MAX_CACHE_LOCK_SECONDS=10
 FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS=60
@@ -85,7 +85,7 @@ print('...done')
 #MAIN LOOP
 print('***Entering main loop...')
 while True:
-    #try:
+    try:
         #UNBLOCK TIMED-OUT URLs IN FRONTIER
         #later replace with postgres cron job
         update_statement="UPDATE crawldb.frontier SET processing_start_time=NULL, status='waiting' WHERE status='processing' AND processing_start_time < NOW() - INTERVAL '"+str(FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS)+" seconds';"
@@ -108,7 +108,8 @@ while True:
         cursor.execute(select_statement)
         html_page_count = cursor.fetchone()[0]
         print("*******************************************NUMBER OF PROCESSED HTML PAGES:", html_page_count)
-
+        # PRINT CACHE LOCK STATUS
+        print('***CRAWLER WORKER LOCKS',"\tdomain_last_accessed_lock:",Crawler_worker.domain_last_accessed_lock,"\tcache_robots_lock:",Crawler_worker.cache_robots_lock)
         '''
         #CHECK IF ANY WORKER LOCKED CACHE FOR TOO LONG --> RESTART WORKER AND RELEASE LOCK
         for idx,worker in enumerate(workers):
@@ -130,8 +131,8 @@ while True:
         if nr_workers_running==0:
             break
         time.sleep(MAX_CACHE_LOCK_SECONDS if MAX_CACHE_LOCK_SECONDS<FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS else FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS)
-    #except Exception as e:
-    #    print('***Exception in main loop!',e)
+    except Exception as e:
+        print('***Exception in main loop!',e)
 cursor.close()
 conn.close()
 print('***...DONE!')
