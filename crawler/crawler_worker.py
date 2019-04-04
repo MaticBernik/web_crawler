@@ -645,6 +645,17 @@ class Crawler_worker:
         response_code, binary_file = page_parser.fetch_file_content(url)
         return response_code, binary_file
 
+    @staticmethod
+    def is_file_url(url):
+        url_ending=url[-6:] if len(url)>=6 else url
+        file_suffixes=['.jspx','.zip','.mp4','.mp3','.jpg','.jpeg','.png','.vaw','.vma','.aspx', '.doc','.pdf','.docx','.ppt']
+        for suffix in file_suffixes:
+            if suffix in url_ending:
+                return True
+        if '.' in url_ending:
+            suffix=url_ending[url_ending.index('.')]
+            print("**** Suffix ",suffix,'found in HREF URL...... IS THAT OK??')
+        return False
 
     def run_logic(self):
         while True:
@@ -737,6 +748,9 @@ class Crawler_worker:
             images = [image_url for image_url in images if rp.can_fetch(useragent,image_url)]
             documents = [document_url for document_url in documents if rp.can_fetch(useragent, document_url)]
             hrefs = [href_url for href_url in hrefs if rp.can_fetch(useragent, href_url)]
+
+            ##### FILTER: HREFS MUST NOT POINT TO A FILE!!!!!! #####
+            hrefs = [href_url for href_url in hrefs if not Crawler_worker.is_file_url(href_url)]
 
             ##### COLLECT BINARIES ONLY FROM SITES LISTED IN THE INITIAL SEED LIST #####
             images_content={image_url: Crawler_worker.dowload_binary(image_url) for image_url in images if Crawler_worker.remove_www(urlparse(image_url).netloc) in self.frontier_seed_sites}
