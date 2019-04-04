@@ -31,6 +31,7 @@ class Crawler_worker:
         #start timer/add timestamp
         cursor=self.cursor
         conn=self.db_conn
+
         if len(Crawler_worker.domain_last_accessed)>0:
             #TRY TO FETCH URL FROM DOMAIN, THAT WAS NOT VISITED/REQUESTED RECENTLY
             domain_priority_order=sorted(Crawler_worker.domain_last_accessed.items(), key=lambda kv: -kv[1])
@@ -78,6 +79,7 @@ class Crawler_worker:
 
         conn.commit()
         if cursor.rowcount==0:
+            print(self.id,' DIDNT GET NEXT PAGE')
             return None
         next_page_id=cursor.fetchone()[0]
         select_statement="""SELECT crawldb.page.id,crawldb.page.url FROM crawldb.page WHERE id="""+str(next_page_id)+';'
@@ -573,6 +575,7 @@ class Crawler_worker:
 
         sitemaps_urls = rp.sitemaps
         sitemaps = [Crawler_worker.read_page(sitemap) for sitemap in sitemaps_urls]
+        sitemaps = [sitemap for sitemap in sitemaps if sitemap is not None]
         sitemaps_hrefs = [Crawler_worker.process_sitemap(sitemap) for sitemap in sitemaps]
         sitemaps_hrefs = set([href for sitemap_hrefs in sitemaps_hrefs for href in sitemap_hrefs])
         ##### FILTER URLS BASED ON ROBOTS FILE #####
@@ -712,26 +715,26 @@ class Crawler_worker:
             else:
                 break
 
-            #print(self.id, "CHECKING IF NEW URL ALREADY PROCESSED")
+            print('\t',self.id, "CHECKING IF NEW URL ALREADY PROCESSED")
             ##### CHECK IF NEW JOB/URL WAS ALREADY PROCESSED (if it was, mark job as done) #####
             if self.url_already_processed(current_url):
                 self.processing_done_URL(current_url)
                 continue
 
-            #print(self.id, "POCESSING ROBOTS FILE")
+            print('\t',self.id, "POCESSING ROBOTS FILE")
             ##### PROCESS ROBOTS FILE (returns robotparser object) #####
             rp=self.get_robots(current_url)
 
-            #print(self.id, "GETTING CURRENT DEPTH AND DOMAIN")
+            print('\t',self.id, "GETTING CURRENT DEPTH AND DOMAIN")
             ##### GET CURRENT DEPTH AND DOMAIN #####
             current_depth = self.get_current_depth(current_url)
             current_domain = Crawler_worker.remove_www(urlparse(current_url).netloc)
 
-            #print(self.id, "HANDLING ROBOTS AND SITEMAP DATA FOR DOMAIN")
+            print('\t',self.id, "HANDLING ROBOTS AND SITEMAP DATA FOR DOMAIN")
             ##### HANDLE ROBOTS AND SITEMAP DATA #####
             self.handle_robots_sitemaps(rp,current_depth)
 
-            #print(self.id, "RENDERING AND DOWNLOADING WEBPAGE")
+            print('\t',self.id, "RENDERING AND DOWNLOADING WEBPAGE")
             ##### RENDER/DOWNLOAD WEBPAGE #####
             useragent="*"
             while Crawler_worker.domain_locked(current_domain):
@@ -743,13 +746,13 @@ class Crawler_worker:
                 self.processing_done_URL(current_url)
                 continue
 
-            #print(self.id, "HASHING AND CHECKING FOR DUPLICATE")
+            print('\t',self.id, "HASHING AND CHECKING FOR DUPLICATE")
             ##### CHECK IF PAGE CONTENT IMPLIES ALREADY PROCESSED PAGE (if it was, mark job as done) #####
             ## TODO : COMPARE PAGE BY CONTENT
             page_hash = self.get_hash(content)
             is_duplicate = self.duplicate_page(page_hash)
 
-            #print(self.id, "PARSING WEBPAGE")
+            print('\t',self.id, "PARSING WEBPAGE")
             ##### PARSE WEBPAGE AND EXTRACT IMAGES,DOCUMENTS AND HREFS #####
             while Crawler_worker.domain_locked(current_domain):
                 pass
@@ -758,7 +761,7 @@ class Crawler_worker:
             documents += documents_tmp
             hrefs += hrefs_tmp
 
-            #print(self.id, "NORMALIZING EXTRACTED URLS")
+            print('\t',self.id, "NORMALIZING EXTRACTED URLS")
             ##### NORMALIZE URLS #####
             images = [Crawler_worker.normalize_url(image_url) for image_url in images]
             documents = [Crawler_worker.normalize_url(document_url) for document_url in documents]
@@ -797,6 +800,7 @@ class Crawler_worker:
             documents_data_type={document_url: self.get_data_type(document_url) for document_url in documents}
 
             ##### WRITE NEW DATA TO DB IN SINGLE TRANSACTION #####
+            print('\t',self.id,'SAVING DATA TO DB')
             data={'url' : current_url,
                   'domain' : current_domain,
                   'depth' : current_depth,
@@ -814,6 +818,7 @@ class Crawler_worker:
             while Crawler_worker.domain_locked(current_domain):
                 pass
             self.write_to_DB(data=data)
+            print('\t',self.id,'DATA SAVED')
             self.processing_done_URL(current_url)
 
     def run(self):
