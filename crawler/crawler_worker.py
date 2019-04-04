@@ -11,6 +11,7 @@ import sitemap_parser
 import page_parser
 import ssl
 import hashlib
+import mimetypes
 
 
 class Crawler_worker:
@@ -646,15 +647,28 @@ class Crawler_worker:
         return response_code, binary_file
 
     @staticmethod
+    def guess_type_of(link, strict=True):
+        link_type, _ = mimetypes.guess_type(link)
+        if link_type is None and strict:
+            u = urllib.request.urlopen(link)
+            link_type = u.info().get_content_type()  # or using: u.info().gettype()
+        return link_type
+
+    @staticmethod
     def is_file_url(url):
         url_ending=url[-6:] if len(url)>=6 else url
+        if '.htm' or '.html' in url_ending:
+            return False
         file_suffixes=['.jspx','.zip','.mp4','.mp3','.jpg','.jpeg','.png','.vaw','.vma','.aspx', '.doc','.pdf','.docx','.ppt']
         for suffix in file_suffixes:
             if suffix in url_ending:
                 return True
         if '.' in url_ending:
-            suffix=url_ending[url_ending.index('.')]
-            print("**** Suffix ",suffix,'found in HREF URL...... IS THAT OK??')
+            suffix=url_ending[url_ending.index('.'):]
+            print("**** Suffix ",suffix,'found in HREF URL...... IS THAT OK??',url)
+
+        if not 'text' in Crawler_worker.guess_type_of(url):
+            return True
         return False
 
     def run_logic(self):
@@ -748,6 +762,9 @@ class Crawler_worker:
             images = [image_url for image_url in images if rp.can_fetch(useragent,image_url)]
             documents = [document_url for document_url in documents if rp.can_fetch(useragent, document_url)]
             hrefs = [href_url for href_url in hrefs if rp.can_fetch(useragent, href_url)]
+
+            ##### FILTER: HREFS MUST NOT BE '.' #####
+            hrefs = [href_url for href_url in hrefs if not href_url.strip()=='.']
 
             ##### FILTER: HREFS MUST NOT POINT TO A FILE!!!!!! #####
             hrefs = [href_url for href_url in hrefs if not Crawler_worker.is_file_url(href_url)]
