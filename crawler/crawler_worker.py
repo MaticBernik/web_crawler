@@ -410,6 +410,8 @@ class Crawler_worker:
                     elif 'IMAGE/' in content_type:
                         start_idx=content_type.index('IMAGE/')+len('IMAGE/')
                         content_type=content_type[start_idx:start_idx+3]
+                if len(content_type)>50:
+                    continue
                 file_name=image_url[image_url.rfind('/')+1:]
                 insert_statement='INSERT INTO crawldb.image(page_id,filename,content_type,data,accessed_time) VALUES(%s,%s,%s,%s,%s);'
                 insert_values=(image_page_id,file_name,content_type,image_content,datetime.now())
