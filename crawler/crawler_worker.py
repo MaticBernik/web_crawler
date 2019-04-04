@@ -662,8 +662,8 @@ class Crawler_worker:
     def guess_type_of(link, strict=True):
         link_type, _ = mimetypes.guess_type(link)
         if link_type is None and strict:
-            u = urllib.request.urlopen(link)
-            link_type = u.info().get_content_type()  # or using: u.info().gettype()
+            with urllib.request.urlopen(link) as u:
+                link_type = u.info().get_content_type()  # or using: u.info().gettype()
         return link_type
 
     @staticmethod
@@ -672,7 +672,7 @@ class Crawler_worker:
         url_ending=url_ending.lower()
         if '.htm' in url_ending or '.html' in url_ending:
             return False
-        file_suffixes=['.jspx','.zip','.mp4','.mp3','.jpg','.jpeg','.png','.vaw','.vma','.aspx', '.doc','.pdf','.docx','.ppt','.xlsx','.xls','.xsd','.jsp','.txt']
+        file_suffixes=['.jspx','.zip','.mp4','.mp3','.jpg','.jpeg','.png','.vaw','.vma','.aspx', '.doc','.pdf','.docx','.ppt','.xlsx','.xls','.xsd','.jsp','.txt','.xml','.ppsm','.ppsx']
         for suffix in file_suffixes:
             if suffix in url_ending:
                 return True
