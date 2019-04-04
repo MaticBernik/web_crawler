@@ -783,9 +783,9 @@ class Crawler_worker:
 
             ##### FILTER URLS ALREADY PROCESSED #####
             self.state=("FILTERING ALREADY PROCESSED EXTRACTED URLs",time.time())
-            images = [Crawler_worker.normalize_url(image_url) for image_url in images if not self.url_in_frontier(image_url)]
-            documents = [Crawler_worker.normalize_url(document_url) for document_url in documents if not self.url_in_frontier(document_url)]
-            hrefs = [Crawler_worker.normalize_url(href_url) for href_url in hrefs if not self.url_in_frontier(href_url)]
+            images = [image_url for image_url in images if not self.url_in_frontier(image_url)]
+            documents = [document_url for document_url in documents if not self.url_in_frontier(document_url)]
+            hrefs = [href_url for href_url in hrefs if not self.url_in_frontier(href_url)]
 
             ##### FILTER NON .GOV.SI HREFS #####
             #only hrefs or also images and documents???

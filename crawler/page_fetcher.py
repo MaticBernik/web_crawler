@@ -62,12 +62,11 @@ def fetch_page(url, worker_id):
             wait = WebDriverWait(chrome_driver, 5)
             page_html = chrome_driver.page_source
         except:
-            print("WORKER ", worker_id, " failed webdriver")
-            pass
+            print(worker_id, " failed webdriver for page: " , url)
         finally:
             chrome_driver.close()
     else:
-        print("WORKER ", worker_id, "  INVALID URL : ", url)
+        print(worker_id, "  INVALID URL - skipping : ", url)
     
     return response_code, page_html
 
