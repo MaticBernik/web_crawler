@@ -818,6 +818,7 @@ class Crawler_worker:
     def run(self):
         print(self.id+' RUNNING..')
         self.running = True
+        '''
         while True:
             try:
                 self.run_logic()
@@ -825,6 +826,8 @@ class Crawler_worker:
                 print(self.id+' EXCEPTION!!!!!!!! restarting worker..',str(e))
             else:
                 break;
+        '''
+        self.run_logic()
         print(self.id+' exiting!')
         self.cursor.close()
         self.running = False
