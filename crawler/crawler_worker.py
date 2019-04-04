@@ -146,10 +146,19 @@ class Crawler_worker:
         cursor.execute(select_statement, select_values)
         already_exists = cursor.fetchone()[0]
         return already_exists
+    
+    @staticmethod
+    def canonicalize_url(url):
+        normalized_url = normalize(url)
+        parsed_url = urlparse(normalized_url)
+        canonical_url = '{uri.scheme}://{uri.netloc}/{uri.path}'.format(uri=parsed_url)
+        return normalize(canonical_url)
+
 
     @staticmethod
     def normalize_url(url):
-        return normalize(url)
+        # return normalize(url)
+        return Crawler_worker.canonicalize_url(url)
 
     @staticmethod
     def is_gov_url(url):
@@ -702,7 +711,7 @@ class Crawler_worker:
 
         if '.' in url_ending:
             suffix=url_ending[url_ending.index('.'):]
-            print("**** Suffix ",suffix,'found in HREF URL...... IS THAT OK??',url)
+            # print("**** Suffix ",suffix,'found in HREF URL...... IS THAT OK??',url)
 
         '''
         if not 'text' in Crawler_worker.guess_type_of(url):

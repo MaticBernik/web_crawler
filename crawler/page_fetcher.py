@@ -100,6 +100,5 @@ def main():
     url, page = fetch_page(page_url, 1)
     print(is_text_html(page_url))
 
-
 if __name__ == "__main__":
     main()
