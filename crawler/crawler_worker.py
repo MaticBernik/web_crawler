@@ -224,7 +224,7 @@ class Crawler_worker:
             return raw
 
     def get_page(self,url,useragent):
-        response_code, page_html = page_fetcher.fetch_page(url)
+        response_code, page_html = page_fetcher.fetch_page(url, self.id)
         return response_code, page_html
 
     def get_hash(self,content):

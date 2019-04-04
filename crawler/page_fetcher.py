@@ -49,27 +49,26 @@ def write_page_html(name, html):
     with open(name+'.html', 'w') as f:
         f.write(html)
 
-def fetch_page(url, number_of_attemtps=1):
+def fetch_page(url, worker_id):
 
     valid_url, response_code = validate_request_status(url)
     page_html = None
 
     if valid_url:
-        while number_of_attemtps > 0:
-            try:
-                chrome_driver = initialize_driver()
-                # time.sleep(2)
-                chrome_driver.get(url)
-                wait = WebDriverWait(chrome_driver, 5)
-                page_html = chrome_driver.page_source
-                break
-            except:
-                time.sleep(2)
-            finally:
-                chrome_driver.close()
-                number_of_attemtps -= 1
+        try:
+            chrome_driver = initialize_driver()
+            # time.sleep(2)
+            chrome_driver.get(url)
+            wait = WebDriverWait(chrome_driver, 5)
+            page_html = chrome_driver.page_source
+        except:
+            print("WORKER ", worker_id, " failed webdriver")
+            pass
+        finally:
+            chrome_driver.close()
     else:
-        print("INVALID URL : ", url)
+        print("WORKER ", worker_id, "  INVALID URL : ", url)
+    
     return response_code, page_html
 
 def is_text_html(url, reconnect_attempts=1, wait_seconds=4):
@@ -98,7 +97,7 @@ def main():
     page_url = "https://e-uprava.gov.si/"
     # page_url = "http://www.projekt.e-prostor.gov.si/fileadmin/user_upload/Video_vsebine/eProstor_cilj_1_objava.mp4?fbclid=IwAR28WauTwoha--Rqh0cgmMhEswtfJPJwy9IPtktgaYb2it9k96VYbgqAXsg"
     # page_url = "https://evem.gov.si/evem/uporabnik/preusmeriNaPostopek.evem?postopek=prijavaZavarovanjaSp"
-    url, page = fetch_page(page_url)
+    url, page = fetch_page(page_url, 1)
     print(is_text_html(page_url))
 
 
