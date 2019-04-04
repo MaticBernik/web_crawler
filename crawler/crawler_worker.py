@@ -165,38 +165,6 @@ class Crawler_worker:
         current_depth = cursor.fetchone()[0]
         return current_depth
 
-    '''
-    def get_robots(self,url):
-        #extract domain base url
-        #check for existance of robots.txt
-        #process robots.txt (User-agent, Allow, Disallow, Crawl-delay and Sitemap)??
-        #If a sitemap is defined shuld all the URLs defined within it be added to the frontier exclusively or additionaly
-        #If site not already in DB, write it there
-        #else just try to find site's RP object in local cache
-        cursor=self.cursor
-        conn=self.db_conn
-        parsed_uri = urlparse(url)
-        domain = parsed_uri.netloc
-        domain_url = '{uri.scheme}://{uri.netloc}/'.format(uri=parsed_uri)
-        ##### restore from cache if stored else create #####
-        Crawler_worker.cache_robots_lock.acquire()
-        self.cache_robots_lock_timestamp=time.time()
-        try:
-            if domain in Crawler_worker.cache_robots:
-                rp=Crawler_worker.cache_robots[domain]
-            else:
-                robots_url = domain_url + 'robots.txt'
-                rp = robotparser.RobotFileParser()
-                rp.set_url(robots_url)
-                rp.read()
-                Crawler_worker.cache_robots[domain]=rp
-        except Exception as e:
-            print(self.id,'get_robots() EXCEPTION!!!!!',e)
-        Crawler_worker.cache_robots_lock.release()
-        self.cache_robots_lock_timestamp = None
-        return rp
-    '''
-
     def get_robots(self,url):
         #extract domain base url
         #check for existance of robots.txt
@@ -757,9 +725,9 @@ class Crawler_worker:
             hrefs=set(hrefs)
 
             ##### FILTER URLS ALREADY PROCESSED #####
-            images = [Crawler_worker.normalize_url(image_url) for image_url in images if not self.url_already_processed(image_url)]
-            documents = [Crawler_worker.normalize_url(document_url) for document_url in documents if not self.url_already_processed(document_url)]
-            hrefs = [Crawler_worker.normalize_url(href_url) for href_url in hrefs if not self.url_already_processed(href_url)]
+            images = [Crawler_worker.normalize_url(image_url) for image_url in images if not self.url_in_frontier(image_url)]
+            documents = [Crawler_worker.normalize_url(document_url) for document_url in documents if not self.url_in_frontier(document_url)]
+            hrefs = [Crawler_worker.normalize_url(href_url) for href_url in hrefs if not self.url_in_frontier(href_url)]
 
             ##### FILTER NON .GOV.SI HREFS #####
             #only hrefs or also images and documents???

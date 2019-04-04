@@ -169,6 +169,13 @@ class RobotFileParser:
             return False
         if self.allow_all:
             return True
+
+        blacklist = ['sicas-x509si']
+        for bl in blacklist:
+            if bl in url:
+                print("blacklisting: ", url)
+                return False
+
         # Until the robots.txt file has been read or found not
         # to exist, we must assume that no url is allowable.
         # This prevents false positives when a user erroneously

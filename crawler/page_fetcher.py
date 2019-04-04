@@ -3,6 +3,7 @@ import time
 from selenium import webdriver  
 from selenium.webdriver.common.keys import Keys  
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
 import shutil
 from selenium.webdriver.support.ui import WebDriverWait
 
@@ -15,23 +16,24 @@ def initialize_driver():
     # UBUNTU : whereis chromedriver > /usr/bin/chromedriver
     chrome_driver_location = shutil.which("chromedriver")
     driver = webdriver.Chrome(chrome_driver_location, options=options)
-    driver.set_page_load_timeout(10)
+    driver.set_page_load_timeout(5)
 
     return driver
 
-def validate_request_status(url, reconnect_attempts=3, wait_seconds=4):
+def validate_request_status(url, reconnect_attempts=1, wait_seconds=4):
 
     while reconnect_attempts > 0:
         
         headers = {
                 'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.86 Safari/537.36',
         }
-        response = requests.get(url, headers=headers, verify=False, allow_redirects=True, timeout=10)
+        response = requests.get(url, headers=headers, verify=False, allow_redirects=True, timeout=5)
         
         if response.status_code == 200:
             return True, response.status_code
         else:
-            time.sleep(wait_seconds)
+            if reconnect_attempts > 1:
+                time.sleep(wait_seconds)
             reconnect_attempts -= 1
 
     return False, response.status_code
@@ -41,7 +43,7 @@ def write_page_html(name, html):
     with open(name+'.html', 'w') as f:
         f.write(html)
 
-def fetch_page(url, number_of_attemtps=3):
+def fetch_page(url, number_of_attemtps=1):
 
     valid_url, response_code = validate_request_status(url)
     page_html = None
@@ -50,9 +52,9 @@ def fetch_page(url, number_of_attemtps=3):
         while number_of_attemtps > 0:
             try:
                 chrome_driver = initialize_driver()
-                #time.sleep(2)
+                # time.sleep(2)
                 chrome_driver.get(url)
-                wait = WebDriverWait(chrome_driver, 3)
+                wait = WebDriverWait(chrome_driver, 5)
                 page_html = chrome_driver.page_source
                 chrome_driver.close()
                 break
@@ -60,7 +62,8 @@ def fetch_page(url, number_of_attemtps=3):
                 time.sleep(2)
             finally:
                 number_of_attemtps -= 1
-
+    else:
+        print("INVALID URL : ", url)
     return response_code, page_html
 
 
