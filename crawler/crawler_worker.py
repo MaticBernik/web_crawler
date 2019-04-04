@@ -580,6 +580,7 @@ class Crawler_worker:
         ##### FILTER URLS BASED ON ROBOTS FILE #####
         sitemap_hrefs = [href_url for href_url in sitemap_hrefs if rp.can_fetch('*', href_url)]
 
+
         sitemap_content='\n'.join(sitemaps)
         robots_content = rp.raw
 
@@ -671,7 +672,7 @@ class Crawler_worker:
     @staticmethod
     def is_file_url(url):
         url_ending=url[-6:] if len(url)>=6 else url
-        if '.htm' or '.html' in url_ending:
+        if '.htm' in url_ending or '.html' in url_ending:
             return False
         file_suffixes=['.jspx','.zip','.mp4','.mp3','.jpg','.jpeg','.png','.vaw','.vma','.aspx', '.doc','.pdf','.docx','.ppt']
         for suffix in file_suffixes:
