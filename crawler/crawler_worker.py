@@ -682,8 +682,8 @@ class Crawler_worker:
             suffix=url_ending[url_ending.index('.'):]
             print("**** Suffix ",suffix,'found in HREF URL...... IS THAT OK??',url)
         '''
-        if not 'text' in Crawler_worker.guess_type_of(url):
-            return True
+        # if not 'text' in Crawler_worker.guess_type_of(url):
+            # return True
 
         if not page_fetcher.is_text_html(url):
             return True
