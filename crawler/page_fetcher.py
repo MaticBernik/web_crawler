@@ -23,18 +23,24 @@ def initialize_driver():
 def validate_request_status(url, reconnect_attempts=1, wait_seconds=4):
 
     while reconnect_attempts > 0:
-        
-        headers = {
-                'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.86 Safari/537.36',
-        }
-        response = requests.get(url, headers=headers, verify=False, allow_redirects=True, timeout=5)
-        
-        if response.status_code == 200:
-            return True, response.status_code
-        else:
-            if reconnect_attempts > 1:
-                time.sleep(wait_seconds)
+        try:
+            headers = {
+                    'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.86 Safari/537.36',
+            }
+            response = requests.get(url, headers=headers, verify=False, allow_redirects=True, timeout=5)
+
+            if response.status_code == 200:
+                if 'sicas-x509si' in response.url:
+                    # print("LOGIN SSL REDIRECT")
+                    return False, 300 
+
+                return True, response.status_code
+        except:
+            return False, 400
+        finally:
             reconnect_attempts -= 1
+            if reconnect_attempts > 0:
+                time.sleep(wait_seconds)
 
     return False, response.status_code
 
@@ -70,6 +76,7 @@ def fetch_page(url, number_of_attemtps=1):
 def main():
     page_url = "https://e-uprava.gov.si/"
     # page_url = "http://www.projekt.e-prostor.gov.si/fileadmin/user_upload/Video_vsebine/eProstor_cilj_1_objava.mp4?fbclid=IwAR28WauTwoha--Rqh0cgmMhEswtfJPJwy9IPtktgaYb2it9k96VYbgqAXsg"
+    page_url = "https://evem.gov.si/evem/uporabnik/preusmeriNaPostopek.evem?postopek=prijavaZavarovanjaSp"
     url, page = fetch_page(page_url)
 
 
