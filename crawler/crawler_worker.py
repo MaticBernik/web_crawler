@@ -565,6 +565,8 @@ class Crawler_worker:
         sitemaps = [Crawler_worker.read_page(sitemap) for sitemap in sitemaps_urls]
         sitemaps_hrefs = [Crawler_worker.process_sitemap(sitemap) for sitemap in sitemaps]
         sitemaps_hrefs = set([href for sitemap_hrefs in sitemaps_hrefs for href in sitemap_hrefs])
+        ##### filter sitemaps_hrefs if being already in frontier
+        sitemap_hrefs=[href for href in sitemaps_hrefs if self.url_in_frontier(href)]
 
         sitemap_content='\n'.join(sitemaps)
         robots_content = rp.raw
