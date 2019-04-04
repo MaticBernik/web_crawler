@@ -519,12 +519,12 @@ class Crawler_worker:
     def insert_urls_into_frontier(self,url_list,depth):
         ##### MAKE SURE THAT INSERTED URLS ARE NOT ALREADY IN FRONTIER OR FILES..
         ##### FILTER NON .GOV.SI HREFS #####
-        # only hrefs or also images and documents???
+        #only hrefs or also images and documents???
         url_list = [href_url for href_url in url_list if Crawler_worker.is_gov_url(href_url)]
         ##### FILTER: HREFS MUST NOT BE '.' #####
         url_list = [href_url for href_url in url_list if not href_url.strip() == '.']
         ##### FILTER: HREFS MUST NOT POINT TO A FILE!!!!!! #####
-        url_list = [href_url for href_url in url_list if not Crawler_worker.is_file_url(href_url)]
+        #url_list = [href_url for href_url in url_list if not Crawler_worker.is_file_url(href_url)]
 
         if len(url_list)>0:
             conn=self.db_conn
@@ -575,11 +575,8 @@ class Crawler_worker:
         sitemaps = [Crawler_worker.read_page(sitemap) for sitemap in sitemaps_urls]
         sitemaps_hrefs = [Crawler_worker.process_sitemap(sitemap) for sitemap in sitemaps]
         sitemaps_hrefs = set([href for sitemap_hrefs in sitemaps_hrefs for href in sitemap_hrefs])
-        ##### filter sitemaps_hrefs if being already in frontier
-        sitemap_hrefs=[href for href in sitemaps_hrefs if self.url_in_frontier(href)]
         ##### FILTER URLS BASED ON ROBOTS FILE #####
-        sitemap_hrefs = [href_url for href_url in sitemap_hrefs if rp.can_fetch('*', href_url)]
-
+        sitemaps_hrefs = [href_url for href_url in sitemaps_hrefs if rp.can_fetch('*', href_url)]
 
         sitemap_content='\n'.join(sitemaps)
         robots_content = rp.raw
@@ -672,9 +669,10 @@ class Crawler_worker:
     @staticmethod
     def is_file_url(url):
         url_ending=url[-6:] if len(url)>=6 else url
+        url_ending=url_ending.lower()
         if '.htm' in url_ending or '.html' in url_ending:
             return False
-        file_suffixes=['.jspx','.zip','.mp4','.mp3','.jpg','.jpeg','.png','.vaw','.vma','.aspx', '.doc','.pdf','.docx','.ppt']
+        file_suffixes=['.jspx','.zip','.mp4','.mp3','.jpg','.jpeg','.png','.vaw','.vma','.aspx', '.doc','.pdf','.docx','.ppt','.xlsx','.xls','.xsd','.jsp','.txt']
         for suffix in file_suffixes:
             if suffix in url_ending:
                 return True
