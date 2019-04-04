@@ -72,7 +72,8 @@ CREATE TABLE crawldb.frontier (
 	depth           integer NOT NULL,
 	id				integer,
 	status          frontier_status NOT NULL,
-	processing_start_time	timestamp
+	processing_start_time	timestamp,
+	CONSTRAINT unq_frontier_page_idx UNIQUE ( id )
 );
 
 CREATE INDEX "idx_link_from_page" ON crawldb.link ( from_page );

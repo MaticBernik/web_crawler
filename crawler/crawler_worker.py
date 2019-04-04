@@ -676,10 +676,11 @@ class Crawler_worker:
         for suffix in file_suffixes:
             if suffix in url_ending:
                 return True
+        '''    
         if '.' in url_ending:
             suffix=url_ending[url_ending.index('.'):]
             print("**** Suffix ",suffix,'found in HREF URL...... IS THAT OK??',url)
-
+        '''
         if not 'text' in Crawler_worker.guess_type_of(url):
             return True
         return False
