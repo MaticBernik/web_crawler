@@ -50,7 +50,15 @@ class Crawler_worker:
                                             WHERE id= (""" + select_statement + """)
                                             RETURNING crawldb.frontier.id;"""
                 update_values = ('%' + domain + '%',)
-                cursor.execute(update_statement,update_values)
+                for i in range(5):
+                    try:
+                        cursor.execute(update_statement,update_values)
+                    except:
+                        self.cursor.execute('rollback;')
+                        self.db_conn.commit()
+                        continue
+                    else:
+                        break
                 if cursor.rowcount>0:
                     break
             else:
@@ -64,7 +72,15 @@ class Crawler_worker:
                 update_statement = """UPDATE crawldb.frontier SET processing_start_time='now', status='processing' 
                                             WHERE id= (""" + select_statement + """)
                                             RETURNING crawldb.frontier.id;"""
-                cursor.execute(update_statement)
+                for i in range(5):
+                    try:
+                        cursor.execute(update_statement)
+                    except:
+                        self.cursor.execute('rollback;')
+                        self.db_conn.commit()
+                        continue
+                    else:
+                        break
         else:
             # IF PRIORITY LIST EMPTY --> TAKE ANY JOB
             # ENSURE BREADTH-FIRST STRATEGY
@@ -76,7 +92,15 @@ class Crawler_worker:
             update_statement = """UPDATE crawldb.frontier SET processing_start_time='now', status='processing' 
                                                         WHERE id= (""" + select_statement + """)
                                                         RETURNING crawldb.frontier.id;"""
-            cursor.execute(update_statement)
+            for i in range(5):
+                try:
+                    cursor.execute(update_statement)
+                except:
+                    self.cursor.execute('rollback;')
+                    self.db_conn.commit()
+                    continue
+                else:
+                    break
 
         conn.commit()
         if cursor.rowcount==0:
@@ -335,8 +359,16 @@ class Crawler_worker:
                                   RETURNING id,url;
                                """
             insert_values = tuple(data['image_urls'])
-            cursor.execute(insert_statement,insert_values)
-            image_pages_ids=cursor.fetchall()
+            image_pages_ids=()
+            for i in range(5):
+                try:
+                    cursor.execute(insert_statement,insert_values)
+                except psycopg2.IntegrityError as e:
+                    self.cursor.execute('rollback;')
+                    self.db_conn.commit()
+                    continue
+                else:
+                    image_pages_ids=cursor.fetchall()
             image_id_url={}
             if len(image_pages_ids)>0:
                 image_id_url={x[0]:x[1] for x in image_pages_ids}
@@ -416,8 +448,18 @@ class Crawler_worker:
                                                   RETURNING id,url;
                                                """
                 insert_values = tuple(data['document_urls'])
-                cursor.execute(insert_statement, insert_values)
-                document_pages_ids = cursor.fetchall()
+                document_pages_ids=[]
+                for i in range(5):
+                    try:
+                        cursor.execute(insert_statement, insert_values)
+                    except:
+                        self.cursor.execute('rollback;')
+                        self.db_conn.commit()
+                        continue
+                    else:
+                        document_pages_ids = cursor.fetchall()
+                        break
+
                 document_id_url = {}
                 if len(document_pages_ids) > 0:
                     document_id_url = {x[0]: x[1] for x in document_pages_ids}
@@ -560,10 +602,18 @@ class Crawler_worker:
                               RETURNING crawldb.page.id; """
             '''
 
-
+            pages_ids=[]
             page_insert_values=tuple(url_list)
-            cursor.execute(page_insert_statement, page_insert_values)
-            pages_ids=cursor.fetchall()
+            for i in range(5):
+                try:
+                    cursor.execute(page_insert_statement, page_insert_values)
+                except:
+                    self.cursor.execute('rollback;')
+                    self.db_conn.commit()
+                    continue
+                else:
+                    break
+                pages_ids=cursor.fetchall()
             if len(pages_ids)>0:
                 insert_statement = """INSERT INTO crawldb.frontier(id,depth,status) VALUES """ + ','.join(
                     ["("+str(id[0])+","+str(depth)+",'waiting')" for id in pages_ids]) + ';'
@@ -699,11 +749,11 @@ class Crawler_worker:
         for suffix in file_suffixes:
             if suffix in url_ending:
                 return True
-
+        '''
         if '.' in url_ending:
             suffix=url_ending[url_ending.index('.'):]
             print("**** Suffix ",suffix,'found in HREF URL...... IS THAT OK??',url)
-
+        '''
         '''
         if not 'text' in Crawler_worker.guess_type_of(url):
             return True
@@ -861,7 +911,6 @@ class Crawler_worker:
     def run(self):
         print(self.id+' RUNNING..')
         self.running = True
-        '''
         while True:
             try:
                 self.run_logic()
@@ -869,8 +918,6 @@ class Crawler_worker:
                 print(self.id+' EXCEPTION!!!!!!!! restarting worker..',str(e))
             else:
                 break;
-        '''
-        self.run_logic()
         print(self.id+' exiting!')
         self.cursor.close()
         self.running = False
