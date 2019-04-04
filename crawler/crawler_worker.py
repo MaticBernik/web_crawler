@@ -207,7 +207,7 @@ class Crawler_worker:
         cursor=self.cursor
         conn=self.db_conn
         parsed_uri = urlparse(url)
-        domain = parsed_uri.netloc
+        domain = Crawler_worker.remove_www(parsed_uri.netloc)
         domain_url = '{uri.scheme}://{uri.netloc}/'.format(uri=parsed_uri)
         ##### restore from cache if stored else create #####
         if domain in Crawler_worker.cache_robots:
@@ -265,6 +265,13 @@ class Crawler_worker:
     def get_content_type(content):
         #check if img/document/html...
         pass
+
+    @staticmethod
+    def remove_www(domain):
+        if 'www.' in domain:
+            return domain[domain.index('www.')+4:]
+        else:
+            return domain
 
     def write_to_DB(self,data):
         #WITHIN SINGLE TRANSACTION!!!
@@ -356,7 +363,7 @@ class Crawler_worker:
             if len(image_pages_ids)>0:
                 image_id_url={x[0]:x[1] for x in image_pages_ids}
             #insert sites for images
-            image_id_domain={id:urlparse(url).netloc for id,url in image_id_url.items()}
+            image_id_domain={id:Crawler_worker.remove_www(urlparse(url).netloc) for id,url in image_id_url.items()}
             domain_site_id={}
             for image_domain in  set(image_id_domain.values()):
                 if not image_domain:
@@ -437,7 +444,7 @@ class Crawler_worker:
                 if len(document_pages_ids) > 0:
                     document_id_url = {x[0]: x[1] for x in document_pages_ids}
                 # insert sites for documents
-                document_id_domain = {id: urlparse(url).netloc for id, url in document_id_url.items()}
+                document_id_domain = {id: Crawler_worker.remove_www(urlparse(url).netloc) for id, url in document_id_url.items()}
                 domain_site_id = {}
                 for document_domain in set(document_id_domain.values()):
                     if not document_domain:
@@ -581,7 +588,7 @@ class Crawler_worker:
         cursor = self.cursor
         conn = self.db_conn
         parsed_uri = urlparse(rp.url)
-        domain = parsed_uri.netloc
+        domain = Crawler_worker.remove_www(parsed_uri.netloc)
 
         sitemaps_urls = rp.sitemaps
         sitemaps = [Crawler_worker.read_page(sitemap) for sitemap in sitemaps_urls]
@@ -660,7 +667,7 @@ class Crawler_worker:
     def dowload_binary(url):
         #dowload binary data (image or document)
         #Return tuple of form (http_status_code,content)
-        current_domain = urlparse(url).netloc
+        current_domain = Crawler_worker.remove_www(urlparse(url).netloc)
         while Crawler_worker.domain_locked(current_domain):
             pass
         response_code, binary_file = page_parser.fetch_file_content(url)
@@ -701,7 +708,7 @@ class Crawler_worker:
             #print(self.id, "GETTING CURRENT DEPTH AND DOMAIN")
             ##### GET CURRENT DEPTH AND DOMAIN #####
             current_depth = self.get_current_depth(current_url)
-            current_domain = urlparse(current_url).netloc
+            current_domain = Crawler_worker.remove_www(urlparse(current_url).netloc)
 
             #print(self.id, "HANDLING ROBOTS AND SITEMAP DATA FOR DOMAIN")
             ##### HANDLE ROBOTS AND SITEMAP DATA #####
@@ -760,8 +767,8 @@ class Crawler_worker:
             hrefs = [href_url for href_url in hrefs if rp.can_fetch(useragent, href_url)]
 
             ##### COLLECT BINARIES ONLY FROM SITES LISTED IN THE INITIAL SEED LIST #####
-            images_content={image_url: Crawler_worker.dowload_binary(image_url) for image_url in images if urlparse(image_url).netloc in self.frontier_seed_sites}
-            documents_content = {document_url: Crawler_worker.dowload_binary(document_url) for document_url in documents if urlparse(document_url).netloc in self.frontier_seed_sites}
+            images_content={image_url: Crawler_worker.dowload_binary(image_url) for image_url in images if Crawler_worker.remove_www(urlparse(image_url).netloc) in self.frontier_seed_sites}
+            documents_content = {document_url: Crawler_worker.dowload_binary(document_url) for document_url in documents if Crawler_worker.remove_www(urlparse(document_url).netloc) in self.frontier_seed_sites}
 
             ##### GET DOCUMENT DATA_TYPE #####
             documents_data_type={document_url: self.get_data_type(document_url) for document_url in documents}
@@ -804,7 +811,7 @@ class Crawler_worker:
         self.db_conn=db_conn
         self.cursor=db_conn.cursor()
         self.id=id
-        self.frontier_seed_sites=[urlparse(seed_url).netloc for seed_url in frontier_seed_urls]
+        self.frontier_seed_sites=[Crawler_worker.remove_www(urlparse(seed_url).netloc) for seed_url in frontier_seed_urls]
         self.cache_robots_lock_timestamp=None
         #self.domain_last_accessed_lock_timestamp=None
 

@@ -100,7 +100,7 @@ while True:
                 workers_threads[idx].exit()
                 #Crawler_worker.cache_robots_lock.release()
         '''
-        print('*******************CACHE LOCKS STATUS:',"cache_robots_lock: "+str(Crawler_worker.cache_robots_lock),"domain_last_accessed_lock: "+str(Crawler_worker.domain_last_accessed_lock))
+        print('*******************CACHE LOCKS STATUS:\t\t',"cache_robots_lock: "+str(Crawler_worker.cache_robots_lock),"\t\tdomain_last_accessed_lock: "+str(Crawler_worker.domain_last_accessed_lock))
         #EXIT WHEN ALL WORKERS ARE DONE
         nr_workers_running = sum([worker.is_running() for worker in workers])
         if nr_workers_running==0:
