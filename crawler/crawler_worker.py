@@ -770,7 +770,7 @@ class Crawler_worker:
             hrefs += hrefs_tmp
 
             #print('\t',self.id, "NORMALIZING EXTRACTED URLS")
-            self.state=("FILTERING EXTRACTED URLs",time.time())
+            self.state=("NORMALIZING EXTRACTED URLs",time.time())
             ##### NORMALIZE URLS #####
             images = [Crawler_worker.normalize_url(image_url) for image_url in images]
             documents = [Crawler_worker.normalize_url(document_url) for document_url in documents]
@@ -782,6 +782,7 @@ class Crawler_worker:
             hrefs=set(hrefs)
 
             ##### FILTER URLS ALREADY PROCESSED #####
+            self.state=("FILTERING ALREADY PROCESSED EXTRACTED URLs",time.time())
             images = [Crawler_worker.normalize_url(image_url) for image_url in images if not self.url_in_frontier(image_url)]
             documents = [Crawler_worker.normalize_url(document_url) for document_url in documents if not self.url_in_frontier(document_url)]
             hrefs = [Crawler_worker.normalize_url(href_url) for href_url in hrefs if not self.url_in_frontier(href_url)]
@@ -791,6 +792,7 @@ class Crawler_worker:
             hrefs = [href_url for href_url in hrefs if Crawler_worker.is_gov_url(href_url)]
 
             ##### FILTER URLS BASED ON ROBOTS FILE #####
+            self.state=('ROBOTS FILTERING EXTRACTED URLS (can_fetch)')
             images = [image_url for image_url in images if rp.can_fetch(useragent,image_url)]
             documents = [document_url for document_url in documents if rp.can_fetch(useragent, document_url)]
             hrefs = [href_url for href_url in hrefs if rp.can_fetch(useragent, href_url)]
@@ -799,13 +801,17 @@ class Crawler_worker:
             hrefs = [href_url for href_url in hrefs if not href_url.strip()=='.']
 
             ##### FILTER: HREFS MUST NOT POINT TO A FILE!!!!!! #####
+            self.state=("FILTERING FILES FROM HREF EXTRACTED URLS",time.time())
             hrefs = [href_url for href_url in hrefs if not Crawler_worker.is_file_url(href_url)]
 
             ##### COLLECT BINARIES ONLY FROM SITES LISTED IN THE INITIAL SEED LIST #####
+            self.state=("DOWNLOADING EXTRACTED BINARIES",time.time())
             images_content={image_url: Crawler_worker.dowload_binary(image_url) for image_url in images if Crawler_worker.remove_www(urlparse(image_url).netloc) in self.frontier_seed_sites}
             documents_content = {document_url: Crawler_worker.dowload_binary(document_url) for document_url in documents if Crawler_worker.remove_www(urlparse(document_url).netloc) in self.frontier_seed_sites}
 
+
             ##### GET DOCUMENT DATA_TYPE #####
+            self.state=('GETTING EXTRACTED DOCUMENT DATA TYPE',time.time())
             documents_data_type={document_url: self.get_data_type(document_url) for document_url in documents}
 
             ##### WRITE NEW DATA TO DB IN SINGLE TRANSACTION #####

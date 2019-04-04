@@ -112,7 +112,7 @@ while True:
         ##### CHECK IF WORKER LOCKED ON SAME STATUS FOR TOO LONG (more than 15s) #####
         current_time=time.time()
         for worker in workers:
-            if worker.state[1]+1<current_time:
+            if worker.state[1]+15<current_time:
                 print('****** ',worker.id,' on status :',worker.state[0],' for last',str(current_time-worker.state[1])+' seconds')
         #print('*******************CACHE LOCKS STATUS:\t\t',"cache_robots_lock: "+str(Crawler_worker.cache_robots_lock),"\t\tdomain_last_accessed_lock: "+str(Crawler_worker.domain_last_accessed_lock))
         #EXIT WHEN ALL WORKERS ARE DONE
