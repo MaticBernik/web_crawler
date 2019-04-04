@@ -91,7 +91,7 @@ while True:
         update_statement="UPDATE crawldb.frontier SET processing_start_time=NULL, status='waiting' WHERE status='processing' AND processing_start_time < NOW() - INTERVAL '"+str(FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS)+" seconds';"
         cursor.execute(update_statement)
         conn.commit()
-        #PRINT OUT PROGRESS
+        #PRINT OUT PROGRESS .GOV.SI
         select_statement = """SELECT count(*) 
                                       FROM crawldb.site INNER JOIN 
                                       (SELECT id,site_id FROM crawldb.page WHERE site_id IS NOT NULL AND page_type_code='HTML') as pages_with_site
@@ -100,6 +100,15 @@ while True:
         cursor.execute(select_statement)
         html_page_count = cursor.fetchone()[0]
         print("*******************************************NUMBER OF PROCESSED .gov.si HTML PAGES:",html_page_count)
+        # PRINT OUT PROGRESS  - ALL PROCESSED HTMLs
+        select_statement = """SELECT count(*) 
+                                              FROM crawldb.site INNER JOIN 
+                                              (SELECT id,site_id FROM crawldb.page WHERE site_id IS NOT NULL AND page_type_code='HTML') as pages_with_site
+                                              ON crawldb.site.id = pages_with_site.site_id;"""
+        cursor.execute(select_statement)
+        html_page_count = cursor.fetchone()[0]
+        print("*******************************************NUMBER OF PROCESSED HTML PAGES:", html_page_count)
+
         '''
         #CHECK IF ANY WORKER LOCKED CACHE FOR TOO LONG --> RESTART WORKER AND RELEASE LOCK
         for idx,worker in enumerate(workers):

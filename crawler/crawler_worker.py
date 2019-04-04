@@ -579,6 +579,7 @@ class Crawler_worker:
         parsed_uri = urlparse(rp.url)
         domain = Crawler_worker.remove_www(parsed_uri.netloc)
 
+        self.state=("HANDLING SITEMAP - processing hrefs",time.time())
         sitemaps_urls = rp.sitemaps
         sitemaps = [Crawler_worker.read_page(sitemap) for sitemap in sitemaps_urls]
         sitemaps = [sitemap for sitemap in sitemaps if sitemap is not None]
@@ -610,10 +611,13 @@ class Crawler_worker:
             insert_values.append(sitemap_content)
         insert_values.append(domain)
         insert_values = tuple(insert_values)
+        self.state=("HANDLING SITEMAP - inserting sites", time.time())
         cursor.execute(insert_statement, insert_values)
         site_id=cursor.fetchone()
         ##### add new urls from sitemaps to  frontier #####
+        self.state=("HANDLING SITEMAP - inserting into frontier", time.time())
         self.insert_urls_into_frontier(sitemaps_hrefs,current_depth+1)
+        self.state=("HANDLING SITEMAP - commiting data", time.time())
         conn.commit()
         return site_id
 
@@ -876,7 +880,6 @@ class Crawler_worker:
         DB_USER = db_connection_info['username']
         DB_PASSWORD = db_connection_info['password']
         while True:
-            print('connectiong to db')
             try:
                 db_conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASSWORD)
             except:
