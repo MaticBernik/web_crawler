@@ -631,7 +631,7 @@ class Crawler_worker:
         '''
         #USE QUEUE!!!
         cached_domain_robots = Crawler_worker.cache_robots[domain]
-        domain_crawl_delay = cached_domain_robots.crawl_delay('*') if cached_domain_robots.crawl_delay('*') is not None \
+        domain_crawl_delay = cached_domain_robots.crawl_delay('*') if cached_domain_robots is not None and cached_domain_robots.crawl_delay('*') is not None \
                               else Crawler_worker.DOMAIN_DEFAULT_MINIMUM_SECONDS_BETWEEN_REQUESTS
         Crawler_worker.domain_last_accessed_lock.acquire()
         try:
@@ -682,9 +682,10 @@ class Crawler_worker:
             suffix=url_ending[url_ending.index('.'):]
             print("**** Suffix ",suffix,'found in HREF URL...... IS THAT OK??',url)
         '''
+        '''
         if not 'text' in Crawler_worker.guess_type_of(url):
             return True
-
+        '''
         if not page_fetcher.is_text_html(url):
             return True
 
