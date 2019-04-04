@@ -10,7 +10,7 @@ DB_HOST=db_connection_info['host']
 DB_NAME=db_connection_info['name']
 DB_USER=db_connection_info['username']
 DB_PASSWORD=db_connection_info['password']
-# FRONTIER_SEED_URLS=['http://evem.gov.si','http://e-uprava.gov.si','http://podatki.gov.si','http://e-prostor.gov.si','http://mizs.gov.si','http://mddsz.gov.si','http://mz.gov.si','http://uvps.gov.si','http://mf.gov.si']
+#FRONTIER_SEED_URLS=['http://evem.gov.si','http://e-uprava.gov.si','http://podatki.gov.si','http://e-prostor.gov.si','http://mizs.gov.si','http://mddsz.gov.si','http://mz.gov.si','http://uvps.gov.si','http://mf.gov.si']
 # for 100k
 # FRONTIER_SEED_URLS=['http://evem.gov.si','http://e-uprava.gov.si','http://podatki.gov.si','http://e-prostor.gov.si']
 # for dump
@@ -57,7 +57,7 @@ tables_in_crawldb = cursor.fetchone()[0]
 if tables_in_crawldb==0:
     cursor.execute(open("crawldb.sql", "r").read())
     conn.commit()
-empty_tables(conn) #REMOVE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#empty_tables(conn) #REMOVE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #INITIALIZE FRONTIER
 cursor.execute("""SELECT count(*) FROM crawldb.page;""")
 pages_nr=cursor.fetchone()[0]

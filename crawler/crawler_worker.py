@@ -30,16 +30,51 @@ class Crawler_worker:
         #start timer/add timestamp
         cursor=self.cursor
         conn=self.db_conn
-        #ENSURE BREADTH-FIRST STRATEGY
-        select_statement="""SELECT MIN(depth) from crawldb.frontier WHERE status='waiting'"""
-        select_statement="""SELECT crawldb.page.id 
-                            FROM crawldb.frontier INNER JOIN crawldb.page ON crawldb.page.id=crawldb.frontier.id  
-                            WHERE status = 'waiting' AND processing_start_time IS NULL AND depth = ("""+select_statement+""")
-                            ORDER BY crawldb.frontier.placement FOR UPDATE SKIP LOCKED LIMIT 1"""
-        update_statement="""UPDATE crawldb.frontier SET processing_start_time='now', status='processing' 
-                            WHERE id= ("""+select_statement+""")
-                            RETURNING crawldb.frontier.id;"""
-        cursor.execute(update_statement)
+        if len(Crawler_worker.domain_last_accessed)>0:
+            #TRY TO FETCH URL FROM DOMAIN, THAT WAS NOT VISITED/REQUESTED RECENTLY
+            domain_priority_order=sorted(Crawler_worker.domain_last_accessed.items(), key=lambda kv: -kv[1])
+            for domain,time in domain_priority_order:
+                # ENSURE BREADTH-FIRST STRATEGY
+                select_statement = """SELECT MIN(depth) from crawldb.frontier WHERE status='waiting'"""
+                select_statement = """SELECT crawldb.page.id 
+                                            FROM crawldb.frontier INNER JOIN crawldb.page ON crawldb.page.id=crawldb.frontier.id  
+                                            WHERE status = 'waiting' 
+                                                AND processing_start_time IS NULL 
+                                                AND depth = (""" + select_statement + """)
+                                                AND url LIKE %s
+                                            ORDER BY crawldb.frontier.placement FOR UPDATE SKIP LOCKED LIMIT 1"""
+                update_statement = """UPDATE crawldb.frontier SET processing_start_time='now', status='processing' 
+                                            WHERE id= (""" + select_statement + """)
+                                            RETURNING crawldb.frontier.id;"""
+                update_values = ('%' + domain + '%',)
+                cursor.execute(update_statement,update_values)
+                if cursor.rowcount>0:
+                    break
+            else:
+                #IF COULD NOT FETCH JOB FOR ANY DOMAIN FROM PRIORITY LIST --> TAKE ANY JOB
+                # ENSURE BREADTH-FIRST STRATEGY
+                select_statement = """SELECT MIN(depth) from crawldb.frontier WHERE status='waiting'"""
+                select_statement = """SELECT crawldb.page.id 
+                                            FROM crawldb.frontier INNER JOIN crawldb.page ON crawldb.page.id=crawldb.frontier.id  
+                                            WHERE status = 'waiting' AND processing_start_time IS NULL AND depth = (""" + select_statement + """)
+                                            ORDER BY crawldb.frontier.placement FOR UPDATE SKIP LOCKED LIMIT 1"""
+                update_statement = """UPDATE crawldb.frontier SET processing_start_time='now', status='processing' 
+                                            WHERE id= (""" + select_statement + """)
+                                            RETURNING crawldb.frontier.id;"""
+                cursor.execute(update_statement)
+        else:
+            # IF PRIORITY LIST EMPTY --> TAKE ANY JOB
+            # ENSURE BREADTH-FIRST STRATEGY
+            select_statement = """SELECT MIN(depth) from crawldb.frontier WHERE status='waiting'"""
+            select_statement = """SELECT crawldb.page.id 
+                                                        FROM crawldb.frontier INNER JOIN crawldb.page ON crawldb.page.id=crawldb.frontier.id  
+                                                        WHERE status = 'waiting' AND processing_start_time IS NULL AND depth = (""" + select_statement + """)
+                                                        ORDER BY crawldb.frontier.placement FOR UPDATE SKIP LOCKED LIMIT 1"""
+            update_statement = """UPDATE crawldb.frontier SET processing_start_time='now', status='processing' 
+                                                        WHERE id= (""" + select_statement + """)
+                                                        RETURNING crawldb.frontier.id;"""
+            cursor.execute(update_statement)
+
         conn.commit()
         if cursor.rowcount==0:
             return None
@@ -459,8 +494,11 @@ class Crawler_worker:
                                                 WHERE minhash = %s LIMIT 1;"""
         select_values=(str(page_hash),)
         cursor.execute(select_statement,select_values)
-        already_exists = cursor.fetchone()[0]
-        return already_exists
+        id = cursor.fetchone()
+        if id is None:
+            return False
+        else:
+            return id[0]
 
 
     def parse_page(self, url, content):
