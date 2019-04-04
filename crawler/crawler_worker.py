@@ -1,4 +1,5 @@
 # from urltools import normalize
+import psycopg2
 from url_normalize import url_normalize as normalize
 import urllib
 from urllib.parse import urlparse
@@ -869,7 +870,19 @@ class Crawler_worker:
         self.cursor.close()
         self.running = False
 
-    def __init__(self, db_conn, frontier_seed_urls, id='WORKER'):
+    def __init__(self, db_connection_info, frontier_seed_urls, id='WORKER'):
+        DB_HOST = db_connection_info['host']
+        DB_NAME = db_connection_info['name']
+        DB_USER = db_connection_info['username']
+        DB_PASSWORD = db_connection_info['password']
+        while True:
+            print('connectiong to db')
+            try:
+                db_conn = psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASSWORD)
+            except:
+                continue
+            else:
+                break
         self.db_conn=db_conn
         self.cursor=db_conn.cursor()
         self.id=id
