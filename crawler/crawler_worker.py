@@ -86,7 +86,7 @@ class Crawler_worker:
         print(self.id+': NEXT PAGE: ',next_page)
         return  next_page[1]
 
-
+    '''
     def remove_URL(self,url):
         #remove url from frontier
         #Actually remove or just mark as such??
@@ -100,6 +100,7 @@ class Crawler_worker:
         cursor.execute(delete_statement,delete_values)
         conn.commit()
         return True
+    '''
 
     def processing_done_URL(self,url):
         cursor = self.cursor
@@ -516,6 +517,15 @@ class Crawler_worker:
         return sitemap_parser.parse_sitemap_xml(sitemap)
 
     def insert_urls_into_frontier(self,url_list,depth):
+        ##### MAKE SURE THAT INSERTED URLS ARE NOT ALREADY IN FRONTIER OR FILES..
+        ##### FILTER NON .GOV.SI HREFS #####
+        # only hrefs or also images and documents???
+        url_list = [href_url for href_url in url_list if Crawler_worker.is_gov_url(href_url)]
+        ##### FILTER: HREFS MUST NOT BE '.' #####
+        url_list = [href_url for href_url in url_list if not href_url.strip() == '.']
+        ##### FILTER: HREFS MUST NOT POINT TO A FILE!!!!!! #####
+        url_list = [href_url for href_url in url_list if not Crawler_worker.is_file_url(href_url)]
+
         if len(url_list)>0:
             conn=self.db_conn
             cursor=self.cursor
@@ -567,15 +577,8 @@ class Crawler_worker:
         sitemaps_hrefs = set([href for sitemap_hrefs in sitemaps_hrefs for href in sitemap_hrefs])
         ##### filter sitemaps_hrefs if being already in frontier
         sitemap_hrefs=[href for href in sitemaps_hrefs if self.url_in_frontier(href)]
-        ##### FILTER NON .GOV.SI HREFS #####
-        # only hrefs or also images and documents???
-        sitemap_hrefs = [href_url for href_url in sitemap_hrefs if Crawler_worker.is_gov_url(href_url)]
         ##### FILTER URLS BASED ON ROBOTS FILE #####
-        sitemap_hrefs = [href_url for href_url in sitemap_hrefs if rp.can_fetch(useragent, href_url)]
-        ##### FILTER: HREFS MUST NOT BE '.' #####
-        sitemap_hrefs = [href_url for href_url in sitemap_hrefs if not href_url.strip() == '.']
-        ##### FILTER: HREFS MUST NOT POINT TO A FILE!!!!!! #####
-        sitemap_hrefs = [href_url for href_url in sitemap_hrefs if not Crawler_worker.is_file_url(href_url)]
+        sitemap_hrefs = [href_url for href_url in sitemap_hrefs if rp.can_fetch('*', href_url)]
 
         sitemap_content='\n'.join(sitemaps)
         robots_content = rp.raw
