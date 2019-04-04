@@ -62,11 +62,11 @@ def fetch_page(url, number_of_attemtps=1):
                 chrome_driver.get(url)
                 wait = WebDriverWait(chrome_driver, 5)
                 page_html = chrome_driver.page_source
-                chrome_driver.close()
                 break
             except:
                 time.sleep(2)
             finally:
+                chrome_driver.close()
                 number_of_attemtps -= 1
     else:
         print("INVALID URL : ", url)
