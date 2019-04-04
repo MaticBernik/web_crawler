@@ -72,13 +72,34 @@ def fetch_page(url, number_of_attemtps=1):
         print("INVALID URL : ", url)
     return response_code, page_html
 
+def is_text_html(url, reconnect_attempts=1, wait_seconds=4):
+
+    while reconnect_attempts > 0:
+        try:
+            headers = {
+                    'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.86 Safari/537.36',
+            }
+            response = requests.get(url, headers=headers, verify=False, allow_redirects=True, timeout=5)
+
+            if response.status_code == 200:
+                content_type = response.headers['content-type']
+                if 'text/html' in content_type or 'text/htm' in content_type:
+                    return True
+        except:
+            return False
+        finally:
+            reconnect_attempts -= 1
+            if reconnect_attempts > 0:
+                time.sleep(wait_seconds)
+
+    return False
 
 def main():
     page_url = "https://e-uprava.gov.si/"
     # page_url = "http://www.projekt.e-prostor.gov.si/fileadmin/user_upload/Video_vsebine/eProstor_cilj_1_objava.mp4?fbclid=IwAR28WauTwoha--Rqh0cgmMhEswtfJPJwy9IPtktgaYb2it9k96VYbgqAXsg"
-    page_url = "https://evem.gov.si/evem/uporabnik/preusmeriNaPostopek.evem?postopek=prijavaZavarovanjaSp"
+    # page_url = "https://evem.gov.si/evem/uporabnik/preusmeriNaPostopek.evem?postopek=prijavaZavarovanjaSp"
     url, page = fetch_page(page_url)
-
+    print(is_text_html(page_url))
 
 
 if __name__ == "__main__":
