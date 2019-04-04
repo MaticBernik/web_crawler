@@ -660,6 +660,7 @@ class Crawler_worker:
 
     @staticmethod
     def guess_type_of(link, strict=True):
+        """ DO NOT USE - CAUSING EXCEPTIONS """
         link_type, _ = mimetypes.guess_type(link)
         if link_type is None and strict:
             with urllib.request.urlopen(link) as u:
@@ -683,6 +684,10 @@ class Crawler_worker:
         '''
         if not 'text' in Crawler_worker.guess_type_of(url):
             return True
+
+        if not page_fetcher.is_text_html(url):
+            return True
+
         return False
 
     def run_logic(self):
