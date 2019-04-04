@@ -16,7 +16,8 @@ def initialize_driver():
     # UBUNTU : whereis chromedriver > /usr/bin/chromedriver
     chrome_driver_location = shutil.which("chromedriver")
     driver = webdriver.Chrome(chrome_driver_location, options=options)
-    driver.set_page_load_timeout(5)
+    driver.set_page_load_timeout(5) # fast network
+    # driver.set_page_load_timeout(15) # slow network
 
     return driver
 
