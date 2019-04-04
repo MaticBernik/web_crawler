@@ -10,7 +10,7 @@ requests.packages.urllib3.disable_warnings()
 def initialize_driver():
     options = Options()  
     options.add_argument("--headless")
-
+    options.add_argument("--mute-audio")
     # UBUNTU : whereis chromedriver > /usr/bin/chromedriver
     chrome_driver_location = shutil.which("chromedriver")
     driver = webdriver.Chrome(chrome_driver_location, options=options)
@@ -51,6 +51,7 @@ def fetch_page(url, number_of_attemtps=3):
                 time.sleep(2)
                 chrome_driver.get(url)
                 page_html = chrome_driver.page_source
+                driver.close()
                 break
             except:
                 number_of_attemtps -= 1
