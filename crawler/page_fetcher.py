@@ -51,7 +51,7 @@ def fetch_page(url, number_of_attemtps=3):
                 time.sleep(2)
                 chrome_driver.get(url)
                 page_html = chrome_driver.page_source
-                driver.close()
+                chrome_driver.close()
                 break
             except:
                 number_of_attemtps -= 1
@@ -62,7 +62,7 @@ def fetch_page(url, number_of_attemtps=3):
 
 def main():
     page_url = "https://e-uprava.gov.si/"
-    fetch_page(page_url)
+    url, page = fetch_page(page_url)
     print("Complete")
 
 
