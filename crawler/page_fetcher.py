@@ -20,8 +20,11 @@ def initialize_driver():
 def validate_request_status(url, reconnect_attempts=3, wait_seconds=4):
 
     while reconnect_attempts > 0:
-
-        response = requests.get(url, verify=False, allow_redirects=True, timeout=10)
+        
+        headers = {
+                'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.86 Safari/537.36',
+        }
+        response = requests.get(url, headers=headers, verify=False, allow_redirects=True, timeout=10)
         
         if response.status_code == 200:
             return True, response.status_code
