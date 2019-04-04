@@ -4,6 +4,7 @@ from selenium import webdriver
 from selenium.webdriver.common.keys import Keys  
 from selenium.webdriver.chrome.options import Options
 import shutil
+from selenium.webdriver.support.ui import WebDriverWait
 
 requests.packages.urllib3.disable_warnings()
 
@@ -49,13 +50,14 @@ def fetch_page(url, number_of_attemtps=3):
         while number_of_attemtps > 0:
             try:
                 chrome_driver = initialize_driver()
-                time.sleep(2)
+                #time.sleep(2)
                 chrome_driver.get(url)
+                wait = WebDriverWait(chrome_driver, 3)
                 page_html = chrome_driver.page_source
                 chrome_driver.close()
                 break
             except:
-                time.sleep(10)
+                time.sleep(2)
             finally:
                 number_of_attemtps -= 1
 
