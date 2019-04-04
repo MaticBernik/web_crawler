@@ -14,6 +14,7 @@ def initialize_driver():
     # UBUNTU : whereis chromedriver > /usr/bin/chromedriver
     chrome_driver_location = shutil.which("chromedriver")
     driver = webdriver.Chrome(chrome_driver_location, options=options)
+    driver.set_page_load_timeout(10)
 
     return driver
 
@@ -54,16 +55,18 @@ def fetch_page(url, number_of_attemtps=3):
                 chrome_driver.close()
                 break
             except:
-                number_of_attemtps -= 1
                 time.sleep(10)
+            finally:
+                number_of_attemtps -= 1
 
     return response_code, page_html
 
 
 def main():
     page_url = "https://e-uprava.gov.si/"
+    # page_url = "http://www.projekt.e-prostor.gov.si/fileadmin/user_upload/Video_vsebine/eProstor_cilj_1_objava.mp4?fbclid=IwAR28WauTwoha--Rqh0cgmMhEswtfJPJwy9IPtktgaYb2it9k96VYbgqAXsg"
     url, page = fetch_page(page_url)
-    print("Complete")
+
 
 
 if __name__ == "__main__":
