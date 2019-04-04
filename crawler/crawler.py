@@ -12,13 +12,13 @@ DB_USER=db_connection_info['username']
 DB_PASSWORD=db_connection_info['password']
 #FRONTIER_SEED_URLS=['http://evem.gov.si','http://e-uprava.gov.si','http://podatki.gov.si','http://e-prostor.gov.si','http://mizs.gov.si','http://mddsz.gov.si','http://mz.gov.si','http://uvps.gov.si','http://mf.gov.si']
 # for 100k
-# FRONTIER_SEED_URLS=['http://evem.gov.si','http://e-uprava.gov.si','http://podatki.gov.si','http://e-prostor.gov.si']
+# FRONTIER_SEED_URLS=['http://evem.gov.si/','http://e-uprava.gov.si/','http://podatki.gov.si/','http://e-prostor.gov.si/']
 # for dump
 FRONTIER_SEED_URLS=['http://evem.gov.si', 'http://e-prostor.gov.si']
+FRONTIER_SEED_URLS=[Crawler_worker.normalize_url(url) for url in FRONTIER_SEED_URLS]
 MAX_CACHE_LOCK_SECONDS=10
 FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS=60
 NR_WORKERS=8
-
 
 def unblock_frontier_waiting(conn):
     '''
