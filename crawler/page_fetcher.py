@@ -17,7 +17,7 @@ def initialize_driver():
     chrome_driver_location = shutil.which("chromedriver")
     driver = webdriver.Chrome(chrome_driver_location, options=options)
     driver.set_page_load_timeout(5) # fast network
-    # driver.set_page_load_timeout(15) # slow network
+    driver.set_page_load_timeout(15) # slow network
 
     return driver
 
@@ -65,7 +65,7 @@ def fetch_page(url, worker_id):
         except:
             print(worker_id, " failed webdriver for page: " , url)
         finally:
-            chrome_driver.close()
+            chrome_driver.quit()
     else:
         print(worker_id, "  INVALID URL - skipping : ", url)
     

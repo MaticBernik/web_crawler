@@ -721,6 +721,7 @@ class Crawler_worker:
             #print('\t',self.id, "CHECKING IF NEW URL ALREADY PROCESSED")
             ##### CHECK IF NEW JOB/URL WAS ALREADY PROCESSED (if it was, mark job as done) #####
             if self.url_already_processed(current_url):
+                print("ALREADY PROCESSED")
                 self.processing_done_URL(current_url)
                 continue
 
@@ -741,15 +742,15 @@ class Crawler_worker:
 
             #print('\t',self.id, "RENDERING AND DOWNLOADING WEBPAGE")
             ##### RENDER/DOWNLOAD WEBPAGE #####
-            self.state=("RENDERING WEBPAGE - before domain locked",time.time())
+            # self.state=("RENDERING WEBPAGE - before domain locked",time.time())
             useragent="*"
-            while Crawler_worker.domain_locked(current_domain):
-                pass
+            # while Crawler_worker.domain_locked(current_domain):
+                # pass
             self.state=("RENDERING WEBPAGE",time.time())
             req_response_code, content = self.get_page(url=current_url,useragent=useragent)
 
             if content is None:
-                #print(self.id, "DOWNLOADED CONTENT IS NONE... JOB DONE:D")
+                print(self.id, "DOWNLOADED CONTENT IS NONE... JOB DONE:D")
                 self.processing_done_URL(current_url)
                 continue
 
