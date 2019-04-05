@@ -113,22 +113,6 @@ class Crawler_worker:
         print(self.id+': NEXT PAGE: ',next_page)
         return  next_page[1]
 
-    '''
-    def remove_URL(self,url):
-        #remove url from frontier
-        #Actually remove or just mark as such??
-        return True # REMOVE!!!!
-        cursor = self.cursor
-        conn = self.db_conn
-        normalized_url = normalize(url)
-        delete_statement = """DELETE FROM crawldb.frontier 
-                              WHERE id = (SELECT id FROM crawldb.page WHERE url = %s);"""
-        delete_values = (normalized_url,)
-        cursor.execute(delete_statement,delete_values)
-        conn.commit()
-        return True
-    '''
-
     def processing_done_URL(self,url):
         cursor = self.cursor
         conn = self.db_conn
@@ -284,6 +268,16 @@ class Crawler_worker:
         else:
             return domain
 
+    def get_site_id(self,domain):
+        select_statement="""SELECT id
+                            FROM crawldb.site
+                            WHERE crawldb.site.domain = %s;"""
+        select_values=(domain,)
+        self.cursor.execute(select_statement,select_values)
+        site_id=self.cursor.fetchone()
+        site_id=site_id[0] if len(site_id)>0 else None
+        return site_id
+
     def write_to_DB(self,data):
         #WITHIN SINGLE TRANSACTION!!!
         #write new data to database
@@ -309,16 +303,19 @@ class Crawler_worker:
 
         cursor = self.cursor
         #get current page id
+        self.state=("SAVING DATA TO DB - getting current page id",time.time())
         select_statement = 'SELECT id from crawldb.page where url = %s;'
         select_values = (data['url'],)
         cursor.execute(select_statement,select_values)
         current_page_id = cursor.fetchone()[0]
         #get current domain site id
+        self.state = ("SAVING DATA TO DB - getting current domain site id", time.time())
         select_statement = 'SELECT id from crawldb.site where domain = %s;'
         select_values = (data['domain'],)
         cursor.execute(select_statement, select_values)
         current_site_id = cursor.fetchone()[0]
         #fill out current page data record in DB
+        self.state = ("SAVING DATA TO DB - filling out current page data", time.time())
         page_type_code = 'DUPLICATE' if data['is_duplicate'] else 'HTML'
         update_statement = 'UPDATE crawldb.page SET '+\
                            'site_id = %s '+\
@@ -339,8 +336,10 @@ class Crawler_worker:
         update_values=tuple(update_values)
         cursor.execute(update_statement, update_values)
         #insert href urls to frontier and create corresponding page entries
+        self.state = ("SAVING DATA TO DB - inserting hrefs into frontier", time.time())
         hrefs_pages_id=self.insert_urls_into_frontier(data['hrefs_urls'],data['depth']+1)
         #insert into link table
+        self.state = ("SAVING DATA TO DB - inserting links", time.time())
         if page_type_code=='DUPLICATE':
             duplicate_page_id=self.duplicate_page(data['minhash'])
             insert_statement='INSERT INTO crawldb.link(from_page,to_page) VALUES (%s,%s);'
@@ -354,50 +353,30 @@ class Crawler_worker:
                 insert_values+=[current_page_id,id]
             insert_values=tuple(insert_values)
             cursor.execute(insert_statement,insert_values)
+        self.db_conn.commit()
         ##### PROCESS IMAGES #####
+        self.state = ("SAVING DATA TO DB - processing images", time.time())
         # filter out image urls longer than 3000 char
         data['image_urls'] = [url for url in data['image_urls'] if len(url) <= 3000]
         if len(data['image_urls'])>0:
             # insert pages for images
-            insert_statement = """WITH urls(u) 
-                                  AS (VALUES """+','.join(['(%s)' for i in range(len(data['image_urls']))])+""")
-                                  INSERT INTO crawldb.page(url)
-                                  (SELECT u FROM urls  
-                                  WHERE u NOT IN (
-                                    SELECT url from crawldb.page) FOR UPDATE SKIP LOCKED)
-                                  RETURNING id,url;
-                               """
-            insert_values = tuple(data['image_urls'])
-            image_pages_ids=()
-            for i in range(5):
-                try:
-                    cursor.execute(insert_statement,insert_values)
-                except psycopg2.IntegrityError as e:
-                    self.cursor.execute('rollback;')
-                    self.db_conn.commit()
-                    continue
-                else:
-                    image_pages_ids=cursor.fetchall()
-            image_id_url={}
-            if len(image_pages_ids)>0:
-                image_id_url={x[0]:x[1] for x in image_pages_ids}
+            self.state = ("SAVING DATA TO DB - inserting image pages", time.time())
+            self.insert_urls_into_pages(data['image_urls'])
+            image_id_url=self.urls2pages_ids(data['image_urls'])
             #insert sites for images
-            image_id_domain={id:Crawler_worker.remove_www(urlparse(url).netloc) for id,url in image_id_url.items()}
+            self.state = ("SAVING DATA TO DB - inserting image sites", time.time())
+            image_id_domain={id:Crawler_worker.remove_www(urlparse(url).netloc) for url,id in image_id_url.items()}
             domain_site_id={}
             for image_domain in  set(image_id_domain.values()):
                 if not image_domain:
                     continue
                 rp=self.get_robots('http://'+image_domain)
-                site_id=self.handle_robots_sitemaps(rp,data['depth']+1)
-                if site_id is None:
-                    select_statement='SELECT id FROM crawldb.site WHERE domain=%s;'
-                    select_values=(image_domain,)
-                    cursor.execute(select_statement,select_values)
-                    site_id=cursor.fetchone()
-                site_id=site_id[0]
+                self.handle_robots_sitemaps(rp,data['depth']+1)
+                site_id=self.get_site_id(image_domain)
                 domain_site_id[image_domain]=site_id
             #fill out page data for images
-            for image_page_id,image_page_url in image_pages_ids:
+            self.state = ("SAVING DATA TO DB - filling out image pages", time.time())
+            for image_page_url,image_page_id in image_id_url.items():
                 if not image_id_domain[image_page_id]:
                     continue
                 update_statement = 'UPDATE crawldb.page SET ' + \
@@ -405,20 +384,18 @@ class Crawler_worker:
                                    ',accessed_time = %s ' + \
                                    ',page_type_code = %s ' + \
                                    (',http_status_code = %s ' \
-                                        if image_id_url[image_page_id] in data['images_content'] \
-                                           and data['images_content'][image_id_url[image_page_id]][0] is not None else '') + \
+                                        if image_page_url in data['images_content'] \
+                                           and data['images_content'][image_page_url][0] is not None else '') + \
                                    'WHERE id = %s;'
                 update_values = [domain_site_id[image_id_domain[image_page_id]], datetime.now(), 'BINARY']
-                if image_id_url[image_page_id] in data['images_content'] and data['images_content'][image_id_url[image_page_id]][0] is not None:
-                    update_values.append(data['images_content'][image_id_url[image_page_id]][0])
+                if image_page_url in data['images_content'] and data['images_content'][image_page_url][0] is not None:
+                    update_values.append(data['images_content'][image_page_url][0])
                 update_values.append(image_page_id)
                 update_values = tuple(update_values)
                 cursor.execute(update_statement, update_values)
+            self.db_conn.commit()
             # insert into image table
-            '''
-            data['images_content'][data['image_urls'][0]] = (
-            100, 'JPEG binary image data example blablbalbal')  # FOR TESTING ..DELETEEEE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            '''
+            self.state = ("SAVING DATA TO DB - inserting into image table", time.time())
             for image_url, (http_code, image_content) in data['images_content'].items():
                 image_page_id = [id for id, url in image_id_url.items() if url == image_url]
                 if len(image_page_id)==0:
@@ -442,53 +419,30 @@ class Crawler_worker:
                 insert_statement='INSERT INTO crawldb.image(page_id,filename,content_type,data,accessed_time) VALUES(%s,%s,%s,%s,%s);'
                 insert_values=(image_page_id,file_name,content_type,image_content,datetime.now())
                 cursor.execute(insert_statement,insert_values)
+            self.db_conn.commit()
         ##### PROCESS DOCUMENTS #####
+            self.state = ("SAVING DATA TO DB - processing documents", time.time())
             # filter out document urls longer than 3000 char
             data['document_urls'] = [url for url in data['document_urls'] if len(url) <= 3000]
             if len(data['document_urls']) >0:
                 # insert pages for documents
-                insert_statement = """WITH urls(u) 
-                                                  AS (VALUES """ + ','.join(
-                    ['(%s)' for i in range(len(data['document_urls']))]) + """)
-                                                  INSERT INTO crawldb.page(url)
-                                                  (SELECT u FROM urls  
-                                                  WHERE u NOT IN (
-                                                    SELECT url from crawldb.page) FOR UPDATE SKIP LOCKED)
-                                                  RETURNING id,url;
-                                               """
-                insert_values = tuple(data['document_urls'])
-                document_pages_ids=[]
-                for i in range(5):
-                    try:
-                        cursor.execute(insert_statement, insert_values)
-                    except:
-                        self.cursor.execute('rollback;')
-                        self.db_conn.commit()
-                        continue
-                    else:
-                        document_pages_ids = cursor.fetchall()
-                        break
-
-                document_id_url = {}
-                if len(document_pages_ids) > 0:
-                    document_id_url = {x[0]: x[1] for x in document_pages_ids}
+                self.state = ("SAVING DATA TO DB - inserting document pages", time.time())
+                self.insert_urls_into_pages(data['document_urls'])
+                document_id_url=self.urls2pages_ids(data['document_urls'])
                 # insert sites for documents
-                document_id_domain = {id: Crawler_worker.remove_www(urlparse(url).netloc) for id, url in document_id_url.items()}
+                self.state = ("SAVING DATA TO DB - inserting document sites", time.time())
+                document_id_domain = {id: Crawler_worker.remove_www(urlparse(url).netloc) for url,id in document_id_url.items()}
                 domain_site_id = {}
                 for document_domain in set(document_id_domain.values()):
                     if not document_domain:
                         continue
                     rp = self.get_robots('http://' + document_domain)
-                    site_id = self.handle_robots_sitemaps(rp, data['depth'] + 1)
-                    if site_id is None:
-                        select_statement = 'SELECT id FROM crawldb.site WHERE domain=%s;'
-                        select_values = (document_domain,)
-                        cursor.execute(select_statement, select_values)
-                        site_id = cursor.fetchone()
-                    site_id = site_id[0]
+                    self.handle_robots_sitemaps(rp, data['depth'] + 1)
+                    site_id = self.get_site_id(document_domain)
                     domain_site_id[document_domain] = site_id
                 # fill out page data for documents
-                for document_page_id, document_page_url in document_pages_ids:
+                self.state = ("SAVING DATA TO DB - filling out document pages", time.time())
+                for document_page_url, document_page_id in document_id_url.items():
                     if not document_id_domain[document_page_id]:
                         continue
                     update_statement = 'UPDATE crawldb.page SET ' + \
@@ -496,17 +450,19 @@ class Crawler_worker:
                                        ',accessed_time = %s ' + \
                                        ',page_type_code = %s ' + \
                                        (',http_status_code = %s ' \
-                                            if document_id_url[document_page_id] in data['documents_content'] \
-                                               and data['documents_content'][document_id_url[document_page_id]][
+                                            if document_page_url in data['documents_content'] \
+                                               and data['documents_content'][document_page_url][
                                                    0] is not None else '') + \
                                        'WHERE id = %s;'
                     update_values = [domain_site_id[document_id_domain[document_page_id]], datetime.now(), 'BINARY']
-                    if document_id_url[document_page_id] in data['documents_content'] and \
-                            data['documents_content'][document_id_url[document_page_id]][0] is not None:
-                        update_values.append(data['documents_content'][document_id_url[document_page_id]][0])
+                    if document_page_url in data['documents_content'] and \
+                            data['documents_content'][document_page_url][0] is not None:
+                        update_values.append(data['documents_content'][document_page_url][0])
                     update_values.append(document_page_id)
                     update_values = tuple(update_values)
                     cursor.execute(update_statement, update_values)
+                self.db_conn.commit()
+                self.state = ("SAVING DATA TO DB - inserting into page_data", time.time())
                 for document_url, (http_code, document_content) in data['documents_content'].items():
                     document_page_id = [id for id, url in document_id_url.items() if url == document_url]
                     if len(document_page_id) == 0:
@@ -517,6 +473,8 @@ class Crawler_worker:
                     insert_statement="""INSERT INTO crawldb.page_data(page_id,data_type_code,data) VALUES (%s,%s,%s);"""
                     insert_values=(document_page_id,document_data_type,document_content)
                     cursor.execute(insert_statement,insert_values)
+        self.state = ("SAVING DATA TO DB - committing changes", time.time())
+        self.db_conn.commit()
 
     def duplicate_page(self,page_hash):
         if page_hash is None:
@@ -575,6 +533,48 @@ class Crawler_worker:
         '''
         return sitemap_parser.parse_sitemap_xml(sitemap)
 
+    def insert_urls_into_pages(self,url_list):
+        conn = self.db_conn
+        cursor = self.cursor
+        if len(url_list)>0:
+            #insert pages for URLs not already stored in crawldb.pages
+            '''
+            page_insert_statement ="""WITH urls(u) 
+                              AS (VALUES """+','.join(['(%s)' for i in range(len(url_list))])+""")
+                              INSERT INTO crawldb.page(url)
+                              (SELECT u FROM urls  
+                              WHERE u NOT IN (
+                                SELECT url from crawldb.page) FOR UPDATE SKIP LOCKED);                     
+                                """
+            '''
+            page_insert_statement = """WITH urls(u) 
+                                          AS (VALUES """ + ','.join(['(%s)' for i in range(len(url_list))]) + """)
+                                          INSERT INTO crawldb.page(url)
+                                          (SELECT u FROM urls  
+                                          WHERE u NOT IN (
+                                            SELECT url from crawldb.page));                     
+                                            """
+            page_insert_values = tuple(url_list)
+            cursor.execute(page_insert_statement, page_insert_values)
+            conn.commit()
+
+    def urls2pages_ids(self,url_list):
+        conn = self.db_conn
+        cursor = self.cursor
+        result={}
+        if len(url_list)>0:
+            #Retrieve id's of pages with URLs listed in URL list
+            select_statement="""WITH urls(u) 
+                              AS (VALUES """+','.join(['(%s)' for i in range(len(url_list))])+""")
+                              SELECT url,id from crawldb.page
+                              WHERE EXISTS (SELECT 1 FROM urls WHERE urls.u=url);"""
+            select_values=tuple(url_list)
+            cursor.execute(select_statement,select_values)
+            pages_urls_ids = cursor.fetchall()
+            result={page[0]:page[1] for page in pages_urls_ids}
+        return result
+
+
     def insert_urls_into_frontier(self,url_list,depth):
         ##### MAKE SURE THAT INSERTED URLS ARE NOT ALREADY IN FRONTIER OR FILES..
         ##### FILTER NON .GOV.SI HREFS #####
@@ -584,51 +584,37 @@ class Crawler_worker:
         url_list = [href_url for href_url in url_list if not href_url.strip() == '.']
         ##### FILTER: HREFS MUST NOT POINT TO A FILE!!!!!! #####
         #url_list = [href_url for href_url in url_list if not Crawler_worker.is_file_url(href_url)]
+        url_list = list(set(url_list))
+
+        # First insert pages for URLs not already stored in crawldb.pages
+        self.insert_urls_into_pages(url_list)
 
         if len(url_list)>0:
             conn=self.db_conn
             cursor=self.cursor
-            url_list = list(set(url_list))
-
-            page_insert_statement ="""WITH urls(u) 
-                              AS (VALUES """+','.join(['(%s)' for i in range(len(url_list))])+""")
-                              INSERT INTO crawldb.page(url)
-                              (SELECT u FROM urls  
-                              WHERE u NOT IN (
-                                SELECT url from crawldb.page) FOR UPDATE SKIP LOCKED)
-                              RETURNING id;                     
-            """
-
+            #Retrieve id's of pages with URLs listed in URL list
             '''
-            page_insert_statement = """WITH urls(u) 
+            select_statement="""WITH urls(u) 
                               AS (VALUES """+','.join(['(%s)' for i in range(len(url_list))])+""")
-                              INSERT INTO crawldb.page(url)
-                              SELECT urls.u
-                              FROM urls
-                              WHERE NOT EXISTS (
-                              SELECT 1 FROM crawldb.page WHERE crawldb.page.url = urls.u)
-                              FOR UPDATE SKIP LOCKED
-                              RETURNING crawldb.page.id; """
+                              SELECT id from crawldb.page
+                              WHERE EXISTS (SELECT 1 FROM urls WHERE urls.u=url);"""
+            select_values=tuple(url_list)
+            cursor.execute(select_statement,select_values)
+            pages_ids = cursor.fetchall()
+            pages_ids = [ id for ids in pages_ids for id in ids]
             '''
+            pages_ids=self.urls2pages_ids(url_list).values()
+            #For every retrieved page create corresponding frontier entry if not exists
+            insert_statement="""WITH pages(id) 
+                              AS (VALUES """+','.join(['(%s)' for i in range(len(pages_ids))])+""")
+                              INSERT INTO crawldb.frontier(id,status,depth)
+                              SELECT id,'waiting',"""+str(depth)+""" FROM pages
+                              WHERE NOT EXISTS (SELECT 1 FROM crawldb.frontier WHERE pages.id=crawldb.frontier.id);
+                              """
+            insert_values = tuple(pages_ids)
+            cursor.execute(insert_statement,insert_values)
+            conn.commit()
 
-            pages_ids=[]
-            page_insert_values=tuple(url_list)
-            for i in range(5):
-                try:
-                    cursor.execute(page_insert_statement, page_insert_values)
-                except:
-                    self.cursor.execute('rollback;')
-                    self.db_conn.commit()
-                    continue
-                else:
-                    break
-                pages_ids=cursor.fetchall()
-            if len(pages_ids)>0:
-                insert_statement = """INSERT INTO crawldb.frontier(id,depth,status) VALUES """ + ','.join(
-                    ["("+str(id[0])+","+str(depth)+",'waiting')" for id in pages_ids]) + ';'
-                cursor.execute(insert_statement)
-                conn.commit()
-            return pages_ids
 
 
 
@@ -653,16 +639,25 @@ class Crawler_worker:
         ##### if robots and sitemap data not already in DB --> insert#####
         i_r = rp.robots_exists  # robot.txt file exists
         i_s = sitemap_content != ''  # sitemap exists
+        '''
         insert_statement = """INSERT INTO crawldb.site (domain""" \
                            + (',robots_content' if i_r else '') \
-                           + (', sitemap_content' if i_s else '') + """)
-                                      SELECT %s""" \
-                           + (', %s' if i_r else '') \
-                           + (', %s' if i_s else '') \
-                           + """WHERE NOT EXISTS (
+                           + (',sitemap_content' if i_s else '') + """)
+                            SELECT %s"""+(',%s' if i_r else '')+ (',%s' if i_s else '')+"""
+                            WHERE NOT EXISTS (
                                         SELECT 1 FROM crawldb.site
                                         WHERE domain = %s
-                                        LIMIT 1) RETURNING id;"""
+                                        FOR UPDATE SKIP LOCKED LIMIT 1);"""
+        '''
+        insert_statement = """INSERT INTO crawldb.site (domain""" \
+                           + (',robots_content' if i_r else '') \
+                           + (',sitemap_content' if i_s else '') + """)
+                                    SELECT %s""" + (',%s' if i_r else '') + (',%s' if i_s else '') + """
+                                    WHERE NOT EXISTS (
+                                                SELECT 1 FROM crawldb.site
+                                                WHERE domain = %s
+                                                LIMIT 1);"""
+
         insert_values = [domain]
         if i_r:
             insert_values.append(robots_content)
@@ -670,15 +665,15 @@ class Crawler_worker:
             insert_values.append(sitemap_content)
         insert_values.append(domain)
         insert_values = tuple(insert_values)
-        self.state=("HANDLING SITEMAP - inserting sites", time.time())
         cursor.execute(insert_statement, insert_values)
-        site_id=cursor.fetchone()
-        ##### add new urls from sitemaps to  frontier #####
+        conn.commit()
+
+                ##### add new urls from sitemaps to  frontier #####
         self.state=("HANDLING SITEMAP - inserting into frontier", time.time())
         self.insert_urls_into_frontier(sitemaps_hrefs,current_depth+1)
         self.state=("HANDLING SITEMAP - commiting data", time.time())
         conn.commit()
-        return site_id
+
 
     def get_data_type(self,url):
         #return data type of binary from url
@@ -894,7 +889,7 @@ class Crawler_worker:
             documents_data_type={document_url: self.get_data_type(document_url) for document_url in documents}
 
             ##### WRITE NEW DATA TO DB IN SINGLE TRANSACTION #####
-            self.state=("SAVING DATA TO DB",time.time())
+            self.state=("SAVING DATA TO DB - PRE-domain-lock-loop",time.time())
             #print('\t',self.id,'SAVING DATA TO DB')
             data={'url' : current_url,
                   'domain' : current_domain,
@@ -912,6 +907,7 @@ class Crawler_worker:
             }
             while Crawler_worker.domain_locked(current_domain):
                 pass
+            self.state = ("SAVING DATA TO DB - POST-domain-lock-loop", time.time())
             self.write_to_DB(data=data)
             #print('\t',self.id,'DATA SAVED')
             self.state=("DATA SAVED",time.time())
@@ -920,13 +916,18 @@ class Crawler_worker:
     def run(self):
         print(self.id+' RUNNING..')
         self.running = True
+        '''
         while True:
             try:
                 self.run_logic()
             except Exception as e:
                 print(self.id+' EXCEPTION!!!!!!!! restarting worker..',str(e))
+                self.cursor.execute("ROLLBACK;")
+                self.db_conn.commit()
             else:
                 break;
+        '''
+        self.run_logic()
         print(self.id+' exiting!')
         self.cursor.close()
         self.running = False

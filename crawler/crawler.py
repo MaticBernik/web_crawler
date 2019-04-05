@@ -85,7 +85,7 @@ print('...done')
 #MAIN LOOP
 print('***Entering main loop...')
 while True:
-    try:
+    #try:
         #UNBLOCK TIMED-OUT URLs IN FRONTIER
         #later replace with postgres cron job
         update_statement="UPDATE crawldb.frontier SET processing_start_time=NULL, status='waiting' WHERE status='processing' AND processing_start_time < NOW() - INTERVAL '"+str(FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS)+" seconds';"
@@ -131,8 +131,8 @@ while True:
         if nr_workers_running==0:
             break
         time.sleep(MAX_CACHE_LOCK_SECONDS if MAX_CACHE_LOCK_SECONDS<FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS else FRONTIER_URL_PROCESSING_TIMEOUT_SECONDS)
-    except Exception as e:
-        print('***Exception in main loop!',e)
+    #except Exception as e:
+    #    print('***Exception in main loop!',e)
 cursor.close()
 conn.close()
 print('***...DONE!')
