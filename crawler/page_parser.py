@@ -99,6 +99,7 @@ def parse_page_html(page_url, page_html):
         link_urls = None
         file_urls = None
 
+    # print_page_links(image_urls, file_urls, link_urls)
     if image_urls == None:
         image_urls = []
     if file_urls == None:

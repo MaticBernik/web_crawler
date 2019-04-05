@@ -6,19 +6,30 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 import shutil
 
-requests.packages.urllib3.disable_warnings()
 
-def initialize_driver():
-    options = Options()  
-    options.add_argument("--headless")
-    options.add_argument("--mute-audio")
-    # UBUNTU : whereis chromedriver > /usr/bin/chromedriver
-    chrome_driver_location = shutil.which("chromedriver")
-    driver = webdriver.Chrome(chrome_driver_location, options=options)
-    driver.set_page_load_timeout(10) # fast network
-    #driver.set_page_load_timeout(15) # slow network
-
-    return driver
+test_links = """
+http://www.e-prostor.gov.si/piskotki/
+http://www.e-prostor.gov.si/
+http://www.e-prostor.gov.si/
+http://www.e-prostor.gov.si/o-portalu/
+http://www.e-prostor.gov.si/kontakt/
+http://www.e-prostor.gov.si/o-portalu/
+http://www.e-prostor.gov.si/kontakt/
+http://www.e-prostor.gov.si/zbirke-prostorskih-podatkov/zbirka-vrednotenja-nepremicnin/
+http://www.e-prostor.gov.si/dostop-do-podatkov/dostop-do-podatkov/
+http://www.e-prostor.gov.si/brezplacni-podatki/
+http://www.e-prostor.gov.si/metapodatki/
+http://www.e-prostor.gov.si/aplikacije/
+http://www.e-prostor.gov.si/informacije/
+http://www.e-prostor.gov.si/
+https://egp.gu.gov.si/egp/
+https://prostor3.sigov.si/pgp/index.jsp
+https://gis.gov.si/ezkn/
+http://prostor3.gov.si/zem_imena/zemImena.jsp
+http://sitranet.si/sitrik.html
+http://sitranet.si
+"""
+test_links = test_links.split("\n")
 
 def validate_request_status(url, reconnect_attempts=1, wait_seconds=4):
 
@@ -44,13 +55,20 @@ def validate_request_status(url, reconnect_attempts=1, wait_seconds=4):
 
     return False, response.status_code
 
-def write_page_html(name, html):
+def initialize_driver():
+    options = Options()  
+    # options.add_argument("--headless")
+    options.add_argument("--mute-audio")
+    # UBUNTU : whereis chromedriver > /usr/bin/chromedriver
+    chrome_driver_location = shutil.which("chromedriver")
+    driver = webdriver.Chrome(chrome_driver_location, options=options)
+    driver.set_page_load_timeout(10) # fast network
+    #driver.set_page_load_timeout(15) # slow network
 
-    with open(name+'.html', 'w') as f:
-        f.write(html)
+    return driver
 
 def fetch_page(url, worker_id):
-    """ GETTING REPLACED BY :  fetch_page_with_driver """
+
     valid_url, response_code = validate_request_status(url)
     page_html = None
 
@@ -70,7 +88,8 @@ def fetch_page(url, worker_id):
     
     return response_code, page_html
 
-def fetch_page_with_driver(url, worker_id, driver):
+
+def fetch_page_with_driver(url, worker_id, chrome_driver):
 
     valid_url, response_code = validate_request_status(url)
     page_html = None
@@ -78,8 +97,9 @@ def fetch_page_with_driver(url, worker_id, driver):
     if valid_url:
         try:
             # time.sleep(2)
-            driver.get(url)
-            page_html = driver.page_source
+            chrome_driver.get(url)
+            # wait = WebDriverWait(chrome_driver, 5)
+            page_html = chrome_driver.page_source
         except:
             print(worker_id, " failed webdriver with code: ", response_code, "  for page: " , url)
     else:
@@ -88,35 +108,25 @@ def fetch_page_with_driver(url, worker_id, driver):
     return response_code, page_html
 
 
-def is_text_html(url, reconnect_attempts=1, wait_seconds=4):
 
-    while reconnect_attempts > 0:
-        try:
-            headers = {
-                    'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.86 Safari/537.36',
-            }
-            response = requests.get(url, headers=headers, verify=False, allow_redirects=True, timeout=5)
+# fecth_data = []
+# start = time.time()
+# for i, link in enumerate(test_links):
+#     scrapped_sited = fetch_page(link, 1)
+#     fecth_data.append(scrapped_sited)
+#     print(i)
+# end = time.time() - start
+# print("Runtime : ", end)      #52 sec
+# print(len(fecth_data))
 
-            if response.status_code == 200:
-                content_type = response.headers['content-type']
-                if 'text/html' in content_type or 'text/htm' in content_type:
-                    return True
-        except:
-            return False
-        finally:
-            reconnect_attempts -= 1
-            if reconnect_attempts > 0:
-                time.sleep(wait_seconds)
+fecth_data_w = []
+start = time.time()
+driver = initialize_driver()
+for i, link in enumerate(test_links):
+    scrapped_sited = fetch_page_with_driver(link, 1, driver)
+    fecth_data_w.append(scrapped_sited)
+    print(i)
+end = time.time() - start
+print("Runtime with: ", end)   # 13 sec
+print(len(fecth_data_w))
 
-    return False
-
-def main():
-    page_url = "https://e-uprava.gov.si/"
-    # page_url = "http://www.projekt.e-prostor.gov.si/fileadmin/user_upload/Video_vsebine/eProstor_cilj_1_objava.mp4?fbclid=IwAR28WauTwoha--Rqh0cgmMhEswtfJPJwy9IPtktgaYb2it9k96VYbgqAXsg"
-    # page_url = "https://evem.gov.si/evem/uporabnik/preusmeriNaPostopek.evem?postopek=prijavaZavarovanjaSp"
-    supposed_invadil = "http://evem.gov.si/info/poslujem/zaposlovanje/poslujem/zaposlovanje/odsotnost-z-dela/"
-    url, page = fetch_page(supposed_invadil, 1)
-    print(is_text_html(page_url))
-
-if __name__ == "__main__":
-    main()
