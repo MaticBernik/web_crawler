@@ -67,7 +67,7 @@ def fetch_page(url, worker_id):
         finally:
             chrome_driver.quit()
     else:
-        print(worker_id, "  INVALID URL - skipping : ", url)
+        print(worker_id, "  INVALID URL - skipping - reponse code: ", response_code, " @ ", url)
     
     return response_code, page_html
 
@@ -97,7 +97,8 @@ def main():
     page_url = "https://e-uprava.gov.si/"
     # page_url = "http://www.projekt.e-prostor.gov.si/fileadmin/user_upload/Video_vsebine/eProstor_cilj_1_objava.mp4?fbclid=IwAR28WauTwoha--Rqh0cgmMhEswtfJPJwy9IPtktgaYb2it9k96VYbgqAXsg"
     # page_url = "https://evem.gov.si/evem/uporabnik/preusmeriNaPostopek.evem?postopek=prijavaZavarovanjaSp"
-    url, page = fetch_page(page_url, 1)
+    supposed_invadil = "http://evem.gov.si/info/poslujem/zaposlovanje/poslujem/zaposlovanje/odsotnost-z-dela/"
+    url, page = fetch_page(supposed_invadil, 1)
     print(is_text_html(page_url))
 
 if __name__ == "__main__":

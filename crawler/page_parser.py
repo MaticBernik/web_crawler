@@ -6,6 +6,8 @@ import page_fetcher
 import re
 from url_normalize import url_normalize
 from urllib.parse import urljoin
+from base64 import b64decode
+
 
 def validate_or_join_url(page_url, link_url):
     
@@ -17,14 +19,31 @@ def validate_or_join_url(page_url, link_url):
         else:
             return urljoin(page_url, link_url)
 
+def fetch_base64_file(base64_url):
+
+    try:
+        header, encoded = base64_url.split(",", 1)
+        data = b64decode(encoded)
+        r_code = 200
+        # extension = header.split("/")[-1][:3]
+    except:
+        data = None
+        r_code = 404
+
+    return r_code, data
+
 def fetch_file_content(file_url):
     """ If successful returns a file of type bytes."""
-    try:
 
+    # base64 data encoding
+    if file_url[:4] == "data:":
+        return fetch_base64_file(file_url)
+    
+    try:
         headers = {
                 'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.86 Safari/537.36',
         }
-        r = requests.get(file_url, verfiy=False, headers=headers, timeout=5)
+        r = requests.get(file_url, headers=headers, timeout=5)
 
         if r.status_code == 200:
             return r.status_code, r.content
@@ -89,14 +108,27 @@ def parse_page_html(page_url, page_html):
 
     return image_urls, file_urls, link_urls
 
+
+
 def main():
 
     # image_site = "https://unsplash.com/search/photos/wallpaper"
     # image_site = "https://www.w3schools.com/jsref/tryit.asp?filename=tryjsref_onclick"
     image_site = "http://www.e-prostor.gov.si/"
-    resp_status, image_html = page_fetcher.fetch_page(image_site)
+    resp_status, image_html = page_fetcher.fetch_page(image_site, 1)
     images, documents, link_hrefs = parse_page_html(image_site, image_html)
     print("complete")
+    data_uri = "data:image/png;base64,iVBORw0KGg..."
+    
+    # test file fetch
+    img_url = "https://pbs.twimg.com/profile_images/875766338081312772/m1UiRwLF_400x400.jpg"
+    # print(fetch_file_content(img_url))
+
+
+    # base64 test
+    img_url_base64 = "data:image/png;base64, iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg=="
+    rcode, data = fetch_base64_file(img_url_base64)
+    print(rcode)
 
 if __name__ == "__main__":
     main()
