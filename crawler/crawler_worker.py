@@ -742,7 +742,7 @@ class Crawler_worker:
                     time.sleep(5)
             else:
                 break
-            self.current_url=current_url
+            self.current_page_id=self.urls2pages_ids([current_url])[current_url]
 
             #print('\t',self.id, "CHECKING IF NEW URL ALREADY PROCESSED")
             ##### CHECK IF NEW JOB/URL WAS ALREADY PROCESSED (if it was, mark job as done) #####
@@ -882,11 +882,10 @@ class Crawler_worker:
             try:
                 self.run_logic()
             except Exception as e:
-                print('\n\n\n',self.id+' EXCEPTION!!!!!!!! releasing job and restarting worker..',str(e),'\n\n\n')
-                self.urls2pages_ids(self.current_url)[self.current_url]
+                print('\n\n\n',self.id+' EXCEPTION!!!!!!!! releasing job and restarting worker..\n',str(e),'\n\n\n')
                 self.cursor.execute("ROLLBACK;")
                 self.db_conn.commit()
-                self.cursor.execute("UPDATE crawldb.frontier SET status='waiting' WHERE id = "+str(self.urls2pages_ids(self.current_url)[self.current_url])+";")
+                self.cursor.execute("UPDATE crawldb.frontier SET status='waiting' WHERE id = "+str(self.current_page_id)+";")
                 self.db_conn.commit()
             else:
                 break;
@@ -914,6 +913,7 @@ class Crawler_worker:
         self.state=('INITIALIZATION',time.time())
         #self.domain_last_accessed_lock_timestamp=None
         self.chrome_driver = page_fetcher.initialize_driver()
+        self.current_page_id=None
 
 
 
