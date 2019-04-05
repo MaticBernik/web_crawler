@@ -45,7 +45,7 @@ class Crawler_worker:
                                                         AND processing_start_time IS NULL 
                                                         AND depth = (""" + select_statement + """)"""\
                                                         +("""AND url LIKE %s""" if domain is not None else '')\
-                                                    +"""ORDER BY crawldb.frontier.placement LIMIT 1""" #+"""ORDER BY crawldb.frontier.placement FOR UPDATE SKIP LOCKED LIMIT 1"""
+                                                    +"""ORDER BY crawldb.frontier.placement FOR NO KEY UPDATE SKIP LOCKED LIMIT 1"""
             update_statement = """UPDATE crawldb.frontier SET processing_start_time='now', status='processing' 
                                                     WHERE id= (""" + select_statement + """)
                                                     RETURNING crawldb.frontier.id;"""
