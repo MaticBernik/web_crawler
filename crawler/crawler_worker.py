@@ -42,7 +42,6 @@ class Crawler_worker:
             select_statement = """SELECT crawldb.page.id 
                                                     FROM crawldb.frontier INNER JOIN crawldb.page ON crawldb.page.id=crawldb.frontier.id  
                                                     WHERE status = 'waiting' 
-                                                        AND processing_start_time IS NULL 
                                                         AND depth = (""" + select_statement + """)"""\
                                                         +("""AND url LIKE %s""" if domain is not None else '')\
                                                     +"""ORDER BY crawldb.frontier.placement LIMIT 1 FOR UPDATE """
