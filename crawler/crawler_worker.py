@@ -551,7 +551,8 @@ class Crawler_worker:
                               AS (VALUES """+','.join(['(%s)' for i in range(len(pages_ids))])+""")
                               INSERT INTO crawldb.frontier(id,status,depth)
                               SELECT pages.id,'waiting',"""+str(depth)+""" FROM pages
-                              WHERE NOT EXISTS (SELECT 1 FROM crawldb.frontier WHERE pages.id=crawldb.frontier.id);
+                              WHERE NOT EXISTS (SELECT 1 FROM crawldb.frontier WHERE pages.id=crawldb.frontier.id)
+                              ON CONFLICT DO NOTHING;
                               """
             insert_values = tuple(pages_ids)
             cursor.execute(insert_statement,insert_values)
@@ -861,9 +862,11 @@ class Crawler_worker:
 
             self.state = ("WAITING-DOMAIN-LOCKUP", time.time())
 
+            #TOOO SLOOWWWWW!!!!
+            '''
             while Crawler_worker.domain_locked(current_domain):
                 pass
-
+            '''
             self.state = ("SAVING DATA TO DB", time.time())
             self.write_to_DB(data=data)
             #print('\t',self.id,'DATA SAVED')
