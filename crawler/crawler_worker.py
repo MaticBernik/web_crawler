@@ -45,7 +45,7 @@ class Crawler_worker:
                                                         AND processing_start_time IS NULL 
                                                         AND depth = (""" + select_statement + """)"""\
                                                         +("""AND url LIKE %s""" if domain is not None else '')\
-                                                    +"""ORDER BY crawldb.frontier.placement FOR NO KEY UPDATE SKIP LOCKED LIMIT 1"""
+                                                    +"""ORDER BY crawldb.frontier.placement FOR SHARE SKIP LOCKED LIMIT 1"""
             update_statement = """UPDATE crawldb.frontier SET processing_start_time='now', status='processing' 
                                                     WHERE id= (""" + select_statement + """)
                                                     RETURNING crawldb.frontier.id;"""
@@ -447,11 +447,6 @@ class Crawler_worker:
             return False
         #check if page with specified page_hash is already in DB
         cursor=self.cursor
-        '''
-        select_statement = """SELECT EXISTS (
-                                        SELECT 1 FROM crawldb.page 
-                                        WHERE minhash = %s LIMIT 1);"""
-        '''
         select_statement = """SELECT id FROM crawldb.page 
                                                 WHERE minhash = %s LIMIT 1;"""
         select_values=(str(page_hash),)
@@ -504,15 +499,6 @@ class Crawler_worker:
         cursor = self.cursor
         if len(url_list)>0:
             #insert pages for URLs not already stored in crawldb.pages
-            '''
-            page_insert_statement ="""WITH urls(u) 
-                              AS (VALUES """+','.join(['(%s)' for i in range(len(url_list))])+""")
-                              INSERT INTO crawldb.page(url)
-                              (SELECT u FROM urls  
-                              WHERE u NOT IN (
-                                SELECT url from crawldb.page) FOR UPDATE SKIP LOCKED);                     
-                                """
-            '''
             page_insert_statement = """WITH urls(u) 
                                           AS (VALUES """ + ','.join(['(%s)' for i in range(len(url_list))]) + """)
                                           INSERT INTO crawldb.page(url)
@@ -559,16 +545,6 @@ class Crawler_worker:
             conn=self.db_conn
             cursor=self.cursor
             #Retrieve id's of pages with URLs listed in URL list
-            '''
-            select_statement="""WITH urls(u) 
-                              AS (VALUES """+','.join(['(%s)' for i in range(len(url_list))])+""")
-                              SELECT id from crawldb.page
-                              WHERE EXISTS (SELECT 1 FROM urls WHERE urls.u=url);"""
-            select_values=tuple(url_list)
-            cursor.execute(select_statement,select_values)
-            pages_ids = cursor.fetchall()
-            pages_ids = [ id for ids in pages_ids for id in ids]
-            '''
             pages_ids=self.urls2pages_ids(url_list).values()
             #For every retrieved page create corresponding frontier entry if not exists
             insert_statement="""WITH pages(id) 
@@ -605,16 +581,7 @@ class Crawler_worker:
         ##### if robots and sitemap data not already in DB --> insert#####
         i_r = rp.robots_exists  # robot.txt file exists
         i_s = sitemap_content != ''  # sitemap exists
-        '''
-        insert_statement = """INSERT INTO crawldb.site (domain""" \
-                           + (',robots_content' if i_r else '') \
-                           + (',sitemap_content' if i_s else '') + """)
-                            SELECT %s"""+(',%s' if i_r else '')+ (',%s' if i_s else '')+"""
-                            WHERE NOT EXISTS (
-                                        SELECT 1 FROM crawldb.site
-                                        WHERE domain = %s
-                                        FOR UPDATE SKIP LOCKED LIMIT 1);"""
-        '''
+
         insert_statement = """INSERT INTO crawldb.site (domain""" \
                            + (',robots_content' if i_r else '') \
                            + (',sitemap_content' if i_s else '') + """)
@@ -876,7 +843,6 @@ class Crawler_worker:
             documents_data_type={document_url: self.get_data_type(document_url) for document_url in documents}
 
             ##### WRITE NEW DATA TO DB IN SINGLE TRANSACTION #####
-            self.state=("SAVING DATA TO DB - PRE-domain-lock-loop",time.time())
             #print('\t',self.id,'SAVING DATA TO DB')
             data={'url' : current_url,
                   'domain' : current_domain,
@@ -893,10 +859,12 @@ class Crawler_worker:
                   'documents_data_type' : documents_data_type
             }
 
+            self.state = ("WAITING-DOMAIN-LOCKUP", time.time())
+
             while Crawler_worker.domain_locked(current_domain):
                 pass
 
-            self.state = ("SAVING DATA TO DB - POST-domain-lock-loop", time.time())
+            self.state = ("SAVING DATA TO DB", time.time())
             self.write_to_DB(data=data)
             #print('\t',self.id,'DATA SAVED')
             self.state=("DATA SAVED",time.time())
