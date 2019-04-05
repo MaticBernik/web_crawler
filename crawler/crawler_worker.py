@@ -742,6 +742,7 @@ class Crawler_worker:
                     time.sleep(5)
             else:
                 break
+            self.current_url=current_url
 
             #print('\t',self.id, "CHECKING IF NEW URL ALREADY PROCESSED")
             ##### CHECK IF NEW JOB/URL WAS ALREADY PROCESSED (if it was, mark job as done) #####
@@ -877,18 +878,18 @@ class Crawler_worker:
     def run(self):
         print(self.id+' RUNNING..')
         self.running = True
-        '''
         while True:
             try:
                 self.run_logic()
             except Exception as e:
-                print(self.id+' EXCEPTION!!!!!!!! restarting worker..',str(e))
+                print('\n\n\n',self.id+' EXCEPTION!!!!!!!! releasing job and restarting worker..',str(e),'\n\n\n')
+                self.urls2pages_ids(self.current_url)[self.current_url]
                 self.cursor.execute("ROLLBACK;")
+                self.db_conn.commit()
+                self.cursor.execute("UPDATE crawldb.frontier SET status='waiting' WHERE id = "+str(self.urls2pages_ids(self.current_url)[self.current_url])+";")
                 self.db_conn.commit()
             else:
                 break;
-        '''
-        self.run_logic()
         print(self.id+' exiting!')
         self.cursor.close()
         self.running = False
