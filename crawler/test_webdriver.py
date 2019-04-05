@@ -101,10 +101,15 @@ def fetch_page_with_driver(url, worker_id, chrome_driver):
             # wait = WebDriverWait(chrome_driver, 5)
             page_html = chrome_driver.page_source
         except:
-            print(worker_id, " failed webdriver with code: ", response_code, "  for page: " , url)
+            # print(worker_id, " failed webdriver with code: ", response_code, "  for page: " , url)
+            pass
     else:
-        print(worker_id, "  INVALID URL - skipping - reponse code: ", response_code, " @ ", url)
+        # print(worker_id, "  INVALID URL - skipping - reponse code: ", response_code, " @ ", url)
+        pass
     
+    if response_code > 499 and response_code < 600:
+        print("\n\nPOSSIBLE FAILURE WITH ", worker_id, " REQUEST RESPONSE 5xx :", response_code, " @url: ", url, "\n\n")
+
     return response_code, page_html
 
 

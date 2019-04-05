@@ -775,7 +775,7 @@ class Crawler_worker:
             req_response_code, content = self.get_page(url=current_url,useragent=useragent)
 
             if content is None:
-                print(self.id, "DOWNLOADED CONTENT IS NONE... JOB DONE:D")
+                # print(self.id, "DOWNLOADED CONTENT IS NONE... JOB DONE:D")
                 ###ADD http_status_code, site_id AND accessed_time TO PAGE
                 self.update_page_early_stop(current_url,current_domain,req_response_code)
                 self.processing_done_URL(current_url)
