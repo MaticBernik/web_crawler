@@ -45,7 +45,7 @@ class Crawler_worker:
                                                         AND processing_start_time IS NULL 
                                                         AND depth = (""" + select_statement + """)"""\
                                                         +("""AND url LIKE %s""" if domain is not None else '')\
-                                                    +"""ORDER BY crawldb.frontier.placement FOR SHARE SKIP LOCKED LIMIT 1"""
+                                                    +"""ORDER BY crawldb.frontier.placement LIMIT 1 FOR UPDATE """
             update_statement = """UPDATE crawldb.frontier SET processing_start_time='now', status='processing' 
                                                     WHERE id= (""" + select_statement + """)
                                                     RETURNING crawldb.frontier.id;"""
@@ -775,7 +775,7 @@ class Crawler_worker:
             req_response_code, content = self.get_page(url=current_url,useragent=useragent)
 
             if content is None:
-                print(self.id, "DOWNLOADED CONTENT IS NONE... JOB DONE:D")
+                #print(self.id, "DOWNLOADED CONTENT IS NONE... JOB DONE:D")
                 ###ADD http_status_code, site_id AND accessed_time TO PAGE
                 self.update_page_early_stop(current_url,current_domain,req_response_code)
                 self.processing_done_URL(current_url)

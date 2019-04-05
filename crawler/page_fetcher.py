@@ -66,7 +66,8 @@ def fetch_page(url, worker_id):
         finally:
             chrome_driver.quit()
     else:
-        print(worker_id, "  INVALID URL - skipping - reponse code: ", response_code, " @ ", url)
+        pass
+        #print(worker_id, "  INVALID URL - skipping - reponse code: ", response_code, " @ ", url)
     
     return response_code, page_html
 
