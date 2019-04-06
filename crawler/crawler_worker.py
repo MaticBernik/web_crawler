@@ -26,6 +26,7 @@ class Crawler_worker:
     def is_running(self):
         return self.running
 
+    '''
     def get_next_frontier_job_id(self,domain_priority=True):
         # TRY TO FETCH URL FROM DOMAIN, THAT WAS NOT VISITED/REQUESTED RECENTLY
         if len(Crawler_worker.domain_last_accessed) == 0:
@@ -39,12 +40,12 @@ class Crawler_worker:
         for domain, time in domain_priority_order:
             # ENSURE BREADTH-FIRST STRATEGY
             select_statement = """SELECT MIN(depth) from crawldb.frontier WHERE status='waiting'"""
-            select_statement = """SELECT crawldb.page.id 
+            select_statement = """SELECT crawldb.frontier.id 
                                                     FROM crawldb.frontier INNER JOIN crawldb.page ON crawldb.page.id=crawldb.frontier.id  
                                                     WHERE status = 'waiting' 
                                                         AND depth = (""" + select_statement + """)"""\
                                                         +("""AND url LIKE %s""" if domain is not None else '')\
-                                                    +"""ORDER BY crawldb.frontier.placement LIMIT 1 FOR UPDATE """
+                                                    +"""ORDER BY crawldb.frontier.placement LIMIT 1 FOR UPDATE SKIP LOCKED"""
             update_statement = """UPDATE crawldb.frontier SET processing_start_time='now', status='processing' 
                                                     WHERE id= (""" + select_statement + """)
                                                     RETURNING crawldb.frontier.id;"""
@@ -60,7 +61,28 @@ class Crawler_worker:
                 result = cursor.fetchone()
                 next_page=result[0]
                 return next_page
+    '''
 
+    def get_next_frontier_job_id(self):
+        # TRY TO FETCH URL FROM DOMAIN, THAT WAS NOT VISITED/REQUESTED RECENTLY
+        cursor = self.cursor
+        conn = self.db_conn
+        domain_priority_order=[(None,None)]
+        # ENSURE BREADTH-FIRST STRATEGY
+        select_statement = """SELECT MIN(depth) from crawldb.frontier WHERE status='waiting'"""
+        select_statement = """SELECT crawldb.frontier.id 
+                                                FROM crawldb.frontier 
+                                                WHERE status = 'waiting' 
+                                                    AND depth = (""" + select_statement + """)"""\
+                                                +"""ORDER BY crawldb.frontier.placement LIMIT 1 FOR UPDATE SKIP LOCKED"""
+        update_statement = """UPDATE crawldb.frontier SET processing_start_time='now', status='processing' 
+                                                WHERE id= (""" + select_statement + """)
+                                                RETURNING crawldb.frontier.id;"""
+        cursor.execute(update_statement)
+        conn.commit()
+        result = cursor.fetchone()
+        next_page=result[0]
+        return next_page
 
     def get_next_URL(self):
         #get next URL from frontier if not empty else None
@@ -342,6 +364,7 @@ class Crawler_worker:
                 domain_site_id[image_domain]=site_id
             #fill out page data for images
             self.state = ("SAVING DATA TO DB - filling out image pages", time.time())
+
             for image_page_url,image_page_id in image_id_url.items():
                 if not image_id_domain[image_page_id]:
                     continue
@@ -349,8 +372,7 @@ class Crawler_worker:
                                    'site_id = %s ' + \
                                    ',accessed_time = %s ' + \
                                    ',page_type_code = %s ' + \
-                                   (',http_status_code = %s ' \
-                                        if image_page_url in data['images_content'] \
+                                   (',http_status_code = %s ' if image_page_url in data['images_content'] \
                                            and data['images_content'][image_page_url][0] is not None else '') + \
                                    'WHERE id = %s;'
                 update_values = [domain_site_id[image_id_domain[image_page_id]], datetime.now(), 'BINARY']
@@ -359,6 +381,9 @@ class Crawler_worker:
                 update_values.append(image_page_id)
                 update_values = tuple(update_values)
                 cursor.execute(update_statement, update_values)
+
+
+
             self.db_conn.commit()
             # insert into image table
             self.state = ("SAVING DATA TO DB - inserting into image table", time.time())
