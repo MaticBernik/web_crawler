@@ -80,6 +80,8 @@ class Crawler_worker:
                                                 RETURNING crawldb.frontier.id;"""
         cursor.execute(update_statement)
         conn.commit()
+        if cursor.rowcount==0:
+            return None
         result = cursor.fetchone()
         next_page=result[0]
         return next_page
