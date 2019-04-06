@@ -31,9 +31,10 @@ seaborn
 ## Running
 Run crawler.py
 
-important paramteres:
-NUMBER_OF_WORKERS #default 8 should equal number of threads
-DOMAIN_DEFAULT_MINIMUM_SECONDS_BETWEEN_REQUESTS $ default 4 respected delay - good ethics
+### IMPORTANT PARAMETERS:
+
+#### NUMBER_OF_WORKERS #default 8 should equal number of threads
+#### DOMAIN_DEFAULT_MINIMUM_SECONDS_BETWEEN_REQUESTS $ default 4 respected delay - good ethics
 
 ## Analysis
 
