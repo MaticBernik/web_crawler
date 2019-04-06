@@ -904,7 +904,6 @@ class Crawler_worker:
     def run(self):
         print(self.id+' RUNNING..')
         self.running = True
-        '''
         while True:
             try:
                 self.run_logic()
@@ -916,8 +915,6 @@ class Crawler_worker:
                 self.db_conn.commit()
             else:
                 break;
-        '''
-        self.run_logic()
         print(self.id+' exiting!')
         self.cursor.close()
         self.running = False
