@@ -529,7 +529,8 @@ class Crawler_worker:
                                           INSERT INTO crawldb.page(url)
                                           (SELECT u FROM urls  
                                           WHERE u NOT IN (
-                                            SELECT url from crawldb.page));                     
+                                            SELECT url from crawldb.page))
+                                            ON CONFLICT DO NOTHING;                     
                                             """
             page_insert_values = tuple(url_list)
             cursor.execute(page_insert_statement, page_insert_values)
@@ -615,7 +616,8 @@ class Crawler_worker:
                                     WHERE NOT EXISTS (
                                                 SELECT 1 FROM crawldb.site
                                                 WHERE domain = %s
-                                                LIMIT 1);"""
+                                                LIMIT 1)
+                            ON CONFLICT DO NOTHING;;"""
 
         insert_values = [domain]
         if i_r:
@@ -902,6 +904,7 @@ class Crawler_worker:
     def run(self):
         print(self.id+' RUNNING..')
         self.running = True
+        '''
         while True:
             try:
                 self.run_logic()
@@ -913,6 +916,8 @@ class Crawler_worker:
                 self.db_conn.commit()
             else:
                 break;
+        '''
+        self.run_logic()
         print(self.id+' exiting!')
         self.cursor.close()
         self.running = False
